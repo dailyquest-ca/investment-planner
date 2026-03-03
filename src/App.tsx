@@ -48,6 +48,7 @@ function loadStoredInputs(): BuyingScenarioInputs {
 function App() {
   const [inputs, setInputs] = useState<BuyingScenarioInputs>(loadStoredInputs);
   const [tableOpen, setTableOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -98,33 +99,60 @@ function App() {
     setInputs(DEFAULT_BUYING_INPUTS);
   };
 
+  const sidebarContent = (
+    <>
+      <div className="p-3 border-b border-slate-800 flex items-center justify-between">
+        <h2 className="font-display text-sm font-semibold text-slate-200">Assumptions</h2>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleResetToDefaults}
+            className="text-xs text-slate-500 hover:text-slate-300 underline"
+          >
+            Reset
+          </button>
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(false)}
+            className="lg:hidden text-slate-400 hover:text-slate-200 p-1"
+            aria-label="Close assumptions panel"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <BuyingInputPanel
+        values={inputs}
+        onChange={handleChange}
+        onWithdrawalOrderChange={handleWithdrawalOrderChange}
+        retirementMonthlyHousing={retirementMonthlyHousing}
+        firstYearRow={firstRow}
+      />
+    </>
+  );
+
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col">
       <div className="flex flex-1 min-h-0 w-full max-w-[1800px] mx-auto">
-        {/* Sidebar: inputs in collapsible cards */}
-        <aside className="w-[320px] shrink-0 border-r border-slate-800 bg-slate-900/30 overflow-y-auto flex flex-col">
-          <div className="p-3 border-b border-slate-800 flex items-center justify-between">
-            <h2 className="font-display text-sm font-semibold text-slate-200">Assumptions</h2>
-            <button
-              type="button"
-              onClick={handleResetToDefaults}
-              className="text-xs text-slate-500 hover:text-slate-300 underline"
-            >
-              Reset
-            </button>
-          </div>
-          <BuyingInputPanel
-            values={inputs}
-            onChange={handleChange}
-            onWithdrawalOrderChange={handleWithdrawalOrderChange}
-            retirementMonthlyHousing={retirementMonthlyHousing}
-            firstYearRow={firstRow}
-          />
+        {/* Desktop sidebar: always visible on lg+ */}
+        <aside className="hidden lg:flex w-[320px] shrink-0 border-r border-slate-800 bg-slate-900/30 overflow-y-auto flex-col">
+          {sidebarContent}
         </aside>
+
+        {/* Mobile drawer overlay: visible when toggled on < lg */}
+        {sidebarOpen && (
+          <div className="lg:hidden fixed inset-0 z-50 flex flex-col bg-slate-950/95 backdrop-blur-sm">
+            <div className="flex-1 overflow-y-auto">
+              {sidebarContent}
+            </div>
+          </div>
+        )}
 
         {/* Main: results always visible */}
         <main className="flex-1 min-w-0 flex flex-col overflow-auto">
-          <div className="p-4 sm:p-6 space-y-4">
+          <div className="p-3 sm:p-4 lg:p-6 space-y-4">
             <header>
               <h1 className="font-display text-xl sm:text-2xl font-bold text-white tracking-tight">
                 Your net worth, mapped
@@ -149,12 +177,12 @@ function App() {
               <SummaryStats rows={rows} retirementYear={retirementYear} />
             </section>
 
-            <section className="grid gap-4 lg:grid-cols-1">
+            <section>
               <SuggestionsPanel suggestions={suggestions} />
             </section>
 
             <section>
-              <div className="rounded-xl bg-slate-800/60 border border-slate-700/80 overflow-hidden shadow-lg">
+              <div className="rounded-xl bg-slate-800/60 border border-slate-700/80 overflow-x-auto shadow-lg">
                 <button
                   type="button"
                   onClick={() => setTableOpen((o) => !o)}
@@ -178,6 +206,19 @@ function App() {
           </div>
         </main>
       </div>
+
+      {/* Mobile floating button to open assumptions */}
+      <button
+        type="button"
+        onClick={() => setSidebarOpen(true)}
+        className="lg:hidden fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-3 shadow-lg shadow-emerald-900/40 transition active:scale-95"
+        aria-label="Open assumptions"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+          <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+        </svg>
+        <span className="text-sm font-medium">Assumptions</span>
+      </button>
 
       <footer className="border-t border-slate-800 py-2 px-3 sm:px-4 shrink-0">
         <p className="text-center text-xs text-slate-600">

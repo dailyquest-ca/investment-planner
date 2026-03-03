@@ -178,7 +178,7 @@ export function BuyingNetWorthChart({ rows, retirementYear }: BuyingNetWorthChar
           ))}
         </div>
       </div>
-      <div className="p-3 h-[320px]">
+      <div className="p-3 h-[240px] sm:h-[320px]">
         <ResponsiveContainer width="100%" height="100%">
           {mode === 'cashflow' ? (
             <BarChart data={cashflowData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
