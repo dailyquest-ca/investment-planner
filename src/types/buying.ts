@@ -12,6 +12,12 @@ export interface BuyingScenarioInputs {
   retirementAge: number;
 
   // Purchase & property
+  /** Years from now until purchase (0 = buying now). */
+  yearsUntilPurchase: number;
+  /** Monthly rent until purchase (only when yearsUntilPurchase > 0). */
+  monthlyRent: number;
+  /** Rent increase per year (e.g. Vancouver-style). */
+  rentIncreasePercent: number;
   buyAmount: number;
   percentageDownpayment: number;
   startingYearlyTaxes: number;
@@ -47,9 +53,8 @@ export interface BuyingScenarioInputs {
   /** Order to withdraw from accounts in retirement: first drained first. */
   retirementWithdrawalOrder: RetirementAccountType[];
 
-  // TFSA
-  zakCurrentTFSAContributionRoom: number;
-  annaCurrentTFSAContributionRoom: number;
+  // TFSA (household totals)
+  householdTFSAContributionRoom: number;
   annualTFSARoomIncrease: number;
 
   // RRSP
@@ -73,42 +78,45 @@ export const RRSP_FTHB_LIMIT = 60_000;
 /** 2026 CRA RRSP annual contribution maximum. */
 export const RRSP_ANNUAL_MAX = 33_810;
 
+/** Generic defaults for first-time visitors (no personal data). */
 export const DEFAULT_BUYING_INPUTS: BuyingScenarioInputs = {
-  currentAge: 30,
+  currentAge: 35,
   lifeExpectancy: 90,
-  retirementAge: 55,
-  buyAmount: 950_000,
+  retirementAge: 60,
+  yearsUntilPurchase: 0,
+  monthlyRent: 2_000,
+  rentIncreasePercent: 4,
+  buyAmount: 600_000,
   percentageDownpayment: 20,
-  startingYearlyTaxes: 4_300,
-  startingMonthlyStrata: 550,
-  appreciationYoY: 5,
-  inflationTaxesYoY: 5,
-  inflationStrataYoY: 3.5,
-  currentFHSABalance: 48_000,
-  currentTFSABalance: 130_000,
-  currentRRSPBalance: 80_000,
-  householdGrossIncome: 200_000,
+  startingYearlyTaxes: 2_800,
+  startingMonthlyStrata: 400,
+  appreciationYoY: 4,
+  inflationTaxesYoY: 4,
+  inflationStrataYoY: 3,
+  currentFHSABalance: 0,
+  currentTFSABalance: 25_000,
+  currentRRSPBalance: 35_000,
+  householdGrossIncome: 100_000,
   numberOfIncomeEarners: 2,
-  yearlyRateOfIncrease: 3,
-  monthlyNonHousingExpenses: 4_000,
+  yearlyRateOfIncrease: 2.5,
+  monthlyNonHousingExpenses: 3_000,
   expenseInflationRate: 2.5,
   helocInterestRate: 5.5,
   helocGrowthFirst: false,
-  monthlyMoneyNeededDuringRetirement: 5_000,
+  monthlyMoneyNeededDuringRetirement: 3_500,
   monthlyMoneyMadeDuringRetirement: 0,
-  partTimeRetirementYears: 5,
+  partTimeRetirementYears: 0,
   retirementWithdrawalOrder: ['RRSP', 'NonRegistered', 'HELOC', 'TFSA'],
-  zakCurrentTFSAContributionRoom: 21_000,
-  annaCurrentTFSAContributionRoom: 21_000,
-  annualTFSARoomIncrease: 7_000,
-  currentRRSPRoom: 50_000,
-  investmentGrowthRate: 9,
+  householdTFSAContributionRoom: 14_000,
+  annualTFSARoomIncrease: 14_000,
+  currentRRSPRoom: 20_000,
+  investmentGrowthRate: 8,
   dividendGrowthRatePercent: 5,
   dividendYieldPercent: 4,
-  mortgageRateInitial: 4,
+  mortgageRateInitial: 4.5,
   mortgageRateAfterTerm: 5,
   mortgageRateChangeAfterYears: 5,
-  mortgageAmortizationYears: 30,
+  mortgageAmortizationYears: 25,
 };
 
 /** Computed down payment allocation: FHSA first, then RRSP up to FTHB limit, then TFSA. */
@@ -119,15 +127,26 @@ export function getDownPaymentAllocation(inputs: BuyingScenarioInputs): {
   amountFromTFSA: number;
 } {
   const downPayment = (inputs.buyAmount * inputs.percentageDownpayment) / 100;
+  return getDownPaymentAllocationFromBalances(
+    downPayment,
+    inputs.currentFHSABalance,
+    inputs.currentRRSPBalance,
+    inputs.currentTFSABalance,
+  );
+}
+
+/** Same allocation logic using explicit balances (e.g. after years of saving). */
+export function getDownPaymentAllocationFromBalances(
+  downPayment: number,
+  fhsaBalance: number,
+  rrspBalance: number,
+  tfsaBalance: number,
+): { downPayment: number; amountFromFHSA: number; amountFromRRSP: number; amountFromTFSA: number } {
   let remaining = downPayment;
-
-  const amountFromFHSA = Math.min(remaining, inputs.currentFHSABalance);
+  const amountFromFHSA = Math.min(remaining, fhsaBalance);
   remaining -= amountFromFHSA;
-
-  const amountFromRRSP = Math.min(remaining, RRSP_FTHB_LIMIT, inputs.currentRRSPBalance);
+  const amountFromRRSP = Math.min(remaining, RRSP_FTHB_LIMIT, rrspBalance);
   remaining -= amountFromRRSP;
-
-  const amountFromTFSA = Math.min(remaining, inputs.currentTFSABalance);
-
+  const amountFromTFSA = Math.min(remaining, tfsaBalance);
   return { downPayment, amountFromFHSA, amountFromRRSP, amountFromTFSA };
 }

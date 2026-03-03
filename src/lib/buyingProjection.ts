@@ -21,6 +21,7 @@
 
 import {
   getDownPaymentAllocation,
+  getDownPaymentAllocationFromBalances,
   RRSP_ANNUAL_MAX,
   type BuyingScenarioInputs,
 } from '../types/buying';
@@ -98,23 +99,10 @@ function calcMonthlyPayment(principal: number, annualRatePercent: number, remain
 export function runBuyingProjection(inputs: BuyingScenarioInputs): BuyingYearRow[] {
   const projectionYears = Math.max(1, inputs.lifeExpectancy - inputs.currentAge);
   const yearsUntilRetirement = Math.max(0, inputs.retirementAge - inputs.currentAge);
+  const yearsUntilPurchase = Math.max(0, inputs.yearsUntilPurchase ?? 0);
 
   const startYear = new Date().getFullYear();
-  const { downPayment, amountFromRRSP, amountFromTFSA } = getDownPaymentAllocation(inputs);
-
-  let loanBalance = inputs.buyAmount - downPayment;
-  const totalMonths = inputs.mortgageAmortizationYears * MONTHS_PER_YEAR;
-  let mortgageRate = inputs.mortgageRateInitial;
-  let payment = calcMonthlyPayment(loanBalance, mortgageRate, totalMonths);
-  let monthsRemaining = totalMonths;
-  let totalPrinciplePaid = 0;
-  let totalInterestPaid = 0;
-
-  let propertyValue = inputs.buyAmount;
-  let yearlyTaxes = inputs.startingYearlyTaxes;
-  let yearlyStrata = inputs.startingMonthlyStrata * MONTHS_PER_YEAR;
-  let grossIncome = inputs.householdGrossIncome;
-  let yearlyExpenses = inputs.monthlyNonHousingExpenses * MONTHS_PER_YEAR;
+  const downPayment = (inputs.buyAmount * inputs.percentageDownpayment) / 100;
 
   const incomeGrowth = 1 + inputs.yearlyRateOfIncrease / 100;
   const expenseInflation = 1 + inputs.expenseInflationRate / 100;
@@ -125,34 +113,40 @@ export function runBuyingProjection(inputs: BuyingScenarioInputs): BuyingYearRow
   const dividendGrowth = 1 + inputs.dividendGrowthRatePercent / 100;
   const helocRate = inputs.helocInterestRate / 100;
   const dividendYield = inputs.dividendYieldPercent / 100;
+  const rentGrowth = 1 + (inputs.rentIncreasePercent ?? 4) / 100;
 
-  let tfsaBalance = inputs.currentTFSABalance - amountFromTFSA;
-  let rrspBalance = inputs.currentRRSPBalance - amountFromRRSP;
-  let helocBalance = 0;
-  let helocDividendBalance = 0;
-  let helocGrowthBalance = 0;
-  let nonRegisteredBalance = 0;
-  let nonRegisteredCostBasis = 0;
-
-  const totalTfsaRoomInitial = inputs.zakCurrentTFSAContributionRoom + inputs.annaCurrentTFSAContributionRoom;
-  const annualTfsaRoomIncrease = inputs.annualTFSARoomIncrease * 2;
-  let tfsaRoomUsed = 0;
-  let tfsaRoomRegained = 0;
-  let pendingTfsaRegain = amountFromTFSA;
-
-  let rrspRoomAvailable = inputs.currentRRSPRoom;
-  let priorYearGrossIncome = grossIncome;
-
+  const totalTfsaRoomInitial = inputs.householdTFSAContributionRoom;
+  const annualTfsaRoomIncrease = inputs.annualTFSARoomIncrease;
   const retirementMonthlyNeed = inputs.monthlyMoneyNeededDuringRetirement;
   const retirementMonthlyMade = inputs.monthlyMoneyMadeDuringRetirement;
   const partTimeYears = inputs.partTimeRetirementYears;
 
-  // Growth-first strategy: all HELOC room → growth during working years.
-  // In the last few years before retirement, sell growth stocks and buy dividend
-  // stocks (HELOC money must stay invested) so dividends cover interest by retirement.
-  // We need enough ramp years for the converted dividend balance to grow and produce
-  // sufficient yield. Since we convert the entire growth balance, typically 2-3 years
-  // of dividend growth is enough for the yield to cover interest.
+  let grossIncome = inputs.householdGrossIncome;
+  let yearlyExpenses = inputs.monthlyNonHousingExpenses * MONTHS_PER_YEAR;
+  let tfsaBalance = inputs.currentTFSABalance;
+  let rrspBalance = inputs.currentRRSPBalance;
+  let nonRegisteredBalance = 0;
+  let nonRegisteredCostBasis = 0;
+  let tfsaRoomUsed = 0;
+  let tfsaRoomRegained = 0;
+  let pendingTfsaRegain = 0;
+  let rrspRoomAvailable = inputs.currentRRSPRoom;
+  let priorYearGrossIncome = grossIncome;
+
+  let loanBalance = 0;
+  let totalMonths = inputs.mortgageAmortizationYears * MONTHS_PER_YEAR;
+  let mortgageRate = inputs.mortgageRateInitial;
+  let payment = 0;
+  let monthsRemaining = 0;
+  let totalPrinciplePaid = 0;
+  let totalInterestPaid = 0;
+  let propertyValue = 0;
+  let yearlyTaxes = 0;
+  let yearlyStrata = 0;
+  let helocBalance = 0;
+  let helocDividendBalance = 0;
+  let helocGrowthBalance = 0;
+
   const growthFirstRampYears = inputs.helocGrowthFirst ? 3 : 0;
   const growthFirstCutoffYear = inputs.helocGrowthFirst
     ? Math.max(0, yearsUntilRetirement - growthFirstRampYears)
@@ -160,7 +154,167 @@ export function runBuyingProjection(inputs: BuyingScenarioInputs): BuyingYearRow
 
   const rows: BuyingYearRow[] = [];
 
-  for (let y = 0; y < projectionYears; y++) {
+  // --- Pre-purchase (renting) years ---
+  if (yearsUntilPurchase > 0) {
+    const monthlyRent = inputs.monthlyRent ?? 2000;
+    for (let y = 0; y < yearsUntilPurchase; y++) {
+      const year = startYear + y;
+      const age = inputs.currentAge + y;
+      const isRetired = y >= yearsUntilRetirement;
+      tfsaRoomRegained += pendingTfsaRegain;
+      pendingTfsaRegain = 0;
+      if (y > 0) {
+        rrspRoomAvailable += Math.min(0.18 * priorYearGrossIncome, RRSP_ANNUAL_MAX);
+      }
+      const yearlyRent = monthlyRent * MONTHS_PER_YEAR * Math.pow(rentGrowth, y);
+      const tfsaRoomAvailable = totalTfsaRoomInitial + annualTfsaRoomIncrease * y - tfsaRoomUsed + tfsaRoomRegained;
+      const retirementYearsElapsed = isRetired ? y - yearsUntilRetirement : 0;
+      const hasPartTimeIncome = isRetired && retirementYearsElapsed < partTimeYears;
+      const currentGrossIncome = isRetired ? (hasPartTimeIncome ? retirementMonthlyMade * MONTHS_PER_YEAR : 0) : grossIncome;
+      const netInvIncome = 0;
+      let incomeTax: number;
+      let netIncome: number;
+      let available: number;
+      let tfsaContrib = 0;
+      let rrspContrib = 0;
+      let nonRegContrib = 0;
+      if (!isRetired) {
+        const conservativeTax = calculateIncomeTax(Math.max(0, currentGrossIncome + netInvIncome), inputs.numberOfIncomeEarners).totalTax;
+        const conservativeNet = currentGrossIncome - conservativeTax;
+        const conservativeAvailable = conservativeNet - yearlyExpenses - yearlyRent;
+        if (conservativeAvailable > 0) {
+          tfsaContrib = Math.min(conservativeAvailable, Math.max(0, tfsaRoomAvailable));
+          tfsaRoomUsed += tfsaContrib;
+          rrspContrib = Math.min(conservativeAvailable - tfsaContrib, Math.max(0, rrspRoomAvailable));
+          rrspRoomAvailable -= rrspContrib;
+          nonRegContrib = Math.max(0, conservativeAvailable - tfsaContrib - rrspContrib);
+        }
+        const actualTaxable = Math.max(0, currentGrossIncome + netInvIncome - rrspContrib);
+        incomeTax = calculateIncomeTax(actualTaxable, inputs.numberOfIncomeEarners).totalTax;
+        netIncome = currentGrossIncome - incomeTax;
+        available = netIncome - yearlyExpenses - yearlyRent;
+        const taxSaved = calculateIncomeTax(Math.max(0, currentGrossIncome + netInvIncome), inputs.numberOfIncomeEarners).totalTax - incomeTax;
+        let surplus = Math.max(0, taxSaved);
+        const additionalRrsp = Math.min(surplus, Math.max(0, rrspRoomAvailable));
+        if (additionalRrsp > 0) {
+          rrspContrib += additionalRrsp;
+          rrspRoomAvailable -= additionalRrsp;
+          surplus -= additionalRrsp;
+          incomeTax = calculateIncomeTax(Math.max(0, currentGrossIncome + netInvIncome - rrspContrib), inputs.numberOfIncomeEarners).totalTax;
+          netIncome = currentGrossIncome - incomeTax;
+          available = netIncome - yearlyExpenses - yearlyRent;
+        }
+        nonRegContrib += Math.max(0, surplus);
+      } else {
+        incomeTax = calculateIncomeTax(Math.max(0, currentGrossIncome + netInvIncome), inputs.numberOfIncomeEarners).totalTax;
+        netIncome = currentGrossIncome - incomeTax;
+        const retireNeed = retirementMonthlyNeed * MONTHS_PER_YEAR + yearlyRent;
+        const incomeAfterTax = Math.max(0, netIncome);
+        const surplus = incomeAfterTax - retireNeed;
+        if (surplus > 0) {
+          tfsaContrib = Math.min(surplus, Math.max(0, tfsaRoomAvailable));
+          tfsaRoomUsed += tfsaContrib;
+          nonRegContrib = surplus - tfsaContrib;
+        }
+        available = 0;
+      }
+      tfsaBalance = tfsaBalance * invGrowth + tfsaContrib;
+      rrspBalance = rrspBalance * invGrowth + rrspContrib;
+      nonRegisteredBalance = nonRegisteredBalance * invGrowth + nonRegContrib;
+      nonRegisteredCostBasis += nonRegContrib;
+      const totalIncome = currentGrossIncome;
+      const effectiveTaxRate = totalIncome > 0 ? (incomeTax / totalIncome) * 100 : 0;
+      const netWorth = tfsaBalance + rrspBalance + nonRegisteredBalance;
+      rows.push({
+        year,
+        age,
+        netWorth,
+        propertyValue: 0,
+        mortgageInterestRate: 0,
+        monthlyPayment: 0,
+        yearlyPayment: 0,
+        monthlyTaxes: 0,
+        yearlyTaxes: 0,
+        monthlyStrata: 0,
+        yearlyStrata: 0,
+        yearlyMortgagePrinciplePaid: 0,
+        yearlyMortgageInterestPaid: 0,
+        totalMortgagePrinciplePaid: 0,
+        totalMortgageInterestPaid: 0,
+        mortgageBalance: 0,
+        houseEquity: 0,
+        helocBalance: 0,
+        yearlyHelocInterest: 0,
+        yearlyDividendIncome: 0,
+        grossIncome: currentGrossIncome,
+        excessDividendIncome: 0,
+        totalWithdrawals: 0,
+        incomeTax,
+        effectiveTaxRate,
+        netIncome,
+        nonHousingExpenses: yearlyExpenses,
+        monthlyHousingCosts: yearlyRent / MONTHS_PER_YEAR,
+        yearlyHousingCosts: yearlyRent,
+        remainingForInvestment: available,
+        amountNotCoveredByInvestments: 0,
+        tfsaContributions: tfsaContrib,
+        tfsaContributionRoom: tfsaRoomAvailable,
+        rrspContributions: rrspContrib,
+        rrspRoom: rrspRoomAvailable + rrspContrib,
+        nonRegisteredContributions: nonRegContrib,
+        helocInvestmentContributions: 0,
+        helocDividendContributions: 0,
+        helocGrowthContributions: 0,
+        tfsaWithdrawals: 0,
+        tfsaBalance,
+        rrspWithdrawals: 0,
+        rrspBalance,
+        nonRegisteredWithdrawals: 0,
+        nonRegisteredBalance,
+        helocWithdrawals: 0,
+        helocInvestmentsBalance: 0,
+        helocDividendBalance: 0,
+        helocGrowthBalance: 0,
+        helocNetEquity: 0,
+      });
+      priorYearGrossIncome = grossIncome;
+      grossIncome *= incomeGrowth;
+      yearlyExpenses *= expenseInflation;
+    }
+    const { amountFromRRSP, amountFromTFSA } = getDownPaymentAllocationFromBalances(
+      downPayment,
+      inputs.currentFHSABalance,
+      rrspBalance,
+      tfsaBalance,
+    );
+    tfsaBalance -= amountFromTFSA;
+    rrspBalance -= amountFromRRSP;
+    pendingTfsaRegain = amountFromTFSA;
+    loanBalance = inputs.buyAmount - downPayment;
+    totalMonths = inputs.mortgageAmortizationYears * MONTHS_PER_YEAR;
+    monthsRemaining = totalMonths;
+    mortgageRate = inputs.mortgageRateInitial;
+    payment = calcMonthlyPayment(loanBalance, mortgageRate, totalMonths);
+    propertyValue = inputs.buyAmount;
+    yearlyTaxes = inputs.startingYearlyTaxes;
+    yearlyStrata = inputs.startingMonthlyStrata * MONTHS_PER_YEAR;
+  } else {
+    const { amountFromRRSP, amountFromTFSA } = getDownPaymentAllocation(inputs);
+    tfsaBalance -= amountFromTFSA;
+    rrspBalance -= amountFromRRSP;
+    pendingTfsaRegain = amountFromTFSA;
+    loanBalance = inputs.buyAmount - downPayment;
+    totalMonths = inputs.mortgageAmortizationYears * MONTHS_PER_YEAR;
+    monthsRemaining = totalMonths;
+    mortgageRate = inputs.mortgageRateInitial;
+    payment = calcMonthlyPayment(loanBalance, mortgageRate, totalMonths);
+    propertyValue = inputs.buyAmount;
+    yearlyTaxes = inputs.startingYearlyTaxes;
+    yearlyStrata = inputs.startingMonthlyStrata * MONTHS_PER_YEAR;
+  }
+
+  const yStart = yearsUntilPurchase;
+  for (let y = yStart; y < projectionYears; y++) {
     const year = startYear + y;
     const age = inputs.currentAge + y;
     const isRetired = y >= yearsUntilRetirement;
@@ -174,8 +328,8 @@ export function runBuyingProjection(inputs: BuyingScenarioInputs): BuyingYearRow
       rrspRoomAvailable += newRoom;
     }
 
-    // --- Mortgage rate change ---
-    if (y === inputs.mortgageRateChangeAfterYears) {
+    // --- Mortgage rate change (years from purchase) ---
+    if (y - yStart === inputs.mortgageRateChangeAfterYears) {
       mortgageRate = inputs.mortgageRateAfterTerm;
       payment = calcMonthlyPayment(loanBalance, mortgageRate, monthsRemaining);
     }

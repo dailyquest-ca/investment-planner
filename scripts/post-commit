@@ -1,0 +1,5 @@
+#!/bin/sh
+# Auto-push to origin after every commit. Install with:
+#   cp scripts/post-commit .git/hooks/post-commit
+#   chmod +x .git/hooks/post-commit
+exec git push origin main

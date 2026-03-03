@@ -41,6 +41,12 @@ const INCOME_EXPENSE_FIELDS: FieldConfig[] = [
   { key: 'expenseInflationRate', label: 'Expense inflation (YoY)', unit: '%' },
 ];
 
+const PURCHASE_TIMING_FIELDS: FieldConfig[] = [
+  { key: 'yearsUntilPurchase', label: 'Years until purchase (0 = now)', unit: 'yr' },
+  { key: 'monthlyRent', label: 'Monthly rent until purchase', unit: '$' },
+  { key: 'rentIncreasePercent', label: 'Rent increase (YoY)', unit: '%' },
+];
+
 const PROPERTY_FIELDS: FieldConfig[] = [
   { key: 'buyAmount', label: 'Purchase price', unit: '$' },
   { key: 'percentageDownpayment', label: 'Down payment', unit: '%' },
@@ -72,10 +78,9 @@ const INVESTMENT_FIELDS: FieldConfig[] = [
   { key: 'currentFHSABalance', label: 'Current FHSA', unit: '$' },
   { key: 'currentTFSABalance', label: 'Current TFSA', unit: '$' },
   { key: 'currentRRSPBalance', label: 'Current RRSP', unit: '$' },
-  { key: 'zakCurrentTFSAContributionRoom', label: "Zak's TFSA room", unit: '$' },
-  { key: 'annaCurrentTFSAContributionRoom', label: "Anna's TFSA room", unit: '$' },
-  { key: 'annualTFSARoomIncrease', label: 'Annual TFSA room increase', unit: '$' },
-  { key: 'currentRRSPRoom', label: 'Current RRSP room (household)', unit: '$' },
+  { key: 'householdTFSAContributionRoom', label: 'TFSA room (household)', unit: '$' },
+  { key: 'annualTFSARoomIncrease', label: 'Annual TFSA room increase (household)', unit: '$' },
+  { key: 'currentRRSPRoom', label: 'RRSP room (household)', unit: '$' },
   { key: 'investmentGrowthRate', label: 'Growth rate (TFSA, RRSP, growth stocks)', unit: '%' },
   { key: 'dividendGrowthRatePercent', label: 'Dividend stock growth rate', unit: '%' },
   { key: 'dividendYieldPercent', label: 'HELOC dividend yield', unit: '%' },
@@ -84,7 +89,7 @@ const INVESTMENT_FIELDS: FieldConfig[] = [
 
 function getStep(key: keyof BuyingScenarioInputs): number {
   if (key.includes('Rate') || key.includes('Percent') || key.includes('YoY') || key === 'expenseInflationRate') return 0.1;
-  if (key.includes('Amount') || key.includes('Balance') || key.includes('Room') || key.includes('Strata') || key.includes('Taxes') || key === 'householdGrossIncome' || key === 'monthlyNonHousingExpenses') return 100;
+  if (key.includes('Amount') || key.includes('Balance') || key.includes('Room') || key.includes('Strata') || key.includes('Taxes') || key === 'householdGrossIncome' || key === 'monthlyNonHousingExpenses' || key === 'monthlyRent') return 100;
   return 1;
 }
 
@@ -235,6 +240,17 @@ export function BuyingInputPanel({ values, onChange, onWithdrawalOrderChange, re
             </div>
           );
         })()}
+      </div>
+
+      {/* Purchase timing (when & rent until then) */}
+      <div className="space-y-3 pt-2">
+        <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">Purchase timing</p>
+        <FieldGrid fields={PURCHASE_TIMING_FIELDS} values={values} onChange={onChange} />
+        {values.yearsUntilPurchase > 0 && (
+          <p className="text-xs text-slate-500">
+            Rent increases each year by {values.rentIncreasePercent}% (Vancouver-style). After {values.yearsUntilPurchase} years you buy with accumulated savings.
+          </p>
+        )}
       </div>
 
       {/* Property */}

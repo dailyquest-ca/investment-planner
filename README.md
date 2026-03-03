@@ -35,6 +35,16 @@ npm run preview   # optional: preview production build
 
 Each push to `main` triggers a build and deploy on Cloudflare.
 
+### Auto-push after commit
+
+To have every `git commit` automatically push to `main` (so Cloudflare deploys without running `git push` yourself):
+
+```bash
+npm run setup:auto-push
+```
+
+Then just stage and commit in Cursor (Source Control or terminal); push happens after each commit.
+
 ## Tech stack
 
 - React 18 + TypeScript
