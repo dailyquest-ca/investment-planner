@@ -17,7 +17,7 @@ npm install
 npm run dev
 ```
 
-Then open http://localhost:5173.
+Then open http://localhost:3000.
 
 ## Test
 
@@ -30,22 +30,23 @@ npm run test:watch  # watch mode
 
 ```bash
 npm run build
-npm run preview   # optional: preview production build
+npm start           # serve production build locally
 ```
 
-## Deploy to Vercel
+## Deploy
 
-The app is hosted on [Vercel](https://vercel.com) with the project name `investment-planner`.
+The app auto-deploys to [Vercel](https://vercel.com) on every push to `main`.
 
-1. Install the Vercel CLI: `npm i -g vercel`
-2. Link the project: `vercel link`
-3. Deploy to production: `vercel --prod`
+- **Vercel project**: `investment-planner` (under `dailyquest-ca`)
+- **GitHub repo**: [dailyquest-ca/investment-planner](https://github.com/dailyquest-ca/investment-planner)
+- **Production URL**: [investment-planner.dailyquest.ca](https://investment-planner.dailyquest.ca)
+- **Database**: Neon Postgres (`investment_planner` database)
 
-Or connect the GitHub repo via the Vercel dashboard for automatic deploys on every push to `main`.
+### Environment variables
 
-- **Build command:** `npm run build`
-- **Output directory:** `dist`
-- **Production URL:** [invest.dailyquest.ca](https://invest.dailyquest.ca)
+| Variable | Where | Purpose |
+|---|---|---|
+| `DATABASE_URL` | Vercel (Production) | Neon Postgres connection string |
 
 ### Auto-push after commit
 
@@ -55,29 +56,36 @@ To have every `git commit` automatically push to `main` (so Vercel deploys witho
 npm run setup:auto-push
 ```
 
-Then just stage and commit in Cursor; push happens after each commit.
-
 ## Tech stack
 
+- Next.js 15 (App Router)
 - React 18 + TypeScript
-- Vite 5
 - Tailwind CSS
 - Recharts
 - Vitest (testing)
 - Neon Postgres (user data persistence)
-- Vercel (hosting + serverless functions)
+- Vercel (hosting + serverless)
 
 ## Project structure
 
 ```
+app/
+  layout.tsx              Root layout (HTML shell, metadata, global CSS)
+  page.tsx                Single page, imports the client-side planner
+  api/
+    scenarios/
+      route.ts            GET/POST/DELETE for scenario persistence
 src/
+  components/             React UI components (client-side)
+    Planner.tsx           Main planner component
+    SyncPanel.tsx         Cloud sync status and sync code UI
+    BuyingInputPanel.tsx  Input sidebar
+    BuyingNetWorthChart.tsx
+    BuyingForecastTable.tsx
   lib/
-    domain/          # Pure finance domain modules (tax, mortgage, accounts, heloc)
-    __tests__/       # Vitest test suites
-    buyingProjection.ts   # Projection orchestrator
-    canadianTax.ts        # Re-exports from domain/tax
-    canadianMortgageInsurance.ts
-  components/        # React UI components
-  types/             # TypeScript type definitions
-  api/               # Vercel serverless functions (auth, scenarios)
+    domain/               Pure finance domain modules (tax, mortgage, accounts, heloc)
+    __tests__/            Vitest test suites (127 tests)
+    buyingProjection.ts   Projection orchestrator
+    sync.ts               Cloud sync client
+  types/                  TypeScript type definitions
 ```

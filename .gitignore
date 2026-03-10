@@ -1,12 +1,12 @@
 # Dependencies
 node_modules/
 
+# Next.js
+.next/
+out/
+
 # Build output
 dist/
-tsconfig.tsbuildinfo
-
-# Vite cache
-.vite/
 
 # Editor / OS
 .DS_Store
@@ -28,3 +28,7 @@ Thumbs.db
 
 # Cursor debug logs
 .cursor/debug-*.log
+
+# TypeScript
+next-env.d.ts
+*.tsbuildinfo

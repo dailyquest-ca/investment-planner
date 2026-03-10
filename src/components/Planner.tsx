@@ -1,23 +1,32 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { runBuyingProjection } from './lib/buyingProjection';
-import { getSuggestions } from './lib/suggestions';
-import { DEFAULT_BUYING_INPUTS, type BuyingScenarioInputs, type RetirementAccountType } from './types/buying';
-import { SummaryBanner } from './components/SummaryBanner';
-import { BuyingInputPanel } from './components/BuyingInputPanel';
-import { BuyingForecastTable } from './components/BuyingForecastTable';
-import { BuyingNetWorthChart } from './components/BuyingNetWorthChart';
-import { SummaryStats } from './components/SummaryStats';
-import { SuggestionsPanel } from './components/SuggestionsPanel';
+'use client';
+
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { runBuyingProjection } from '../lib/buyingProjection';
+import { getSuggestions } from '../lib/suggestions';
+import { DEFAULT_BUYING_INPUTS, type BuyingScenarioInputs, type RetirementAccountType } from '../types/buying';
+import { SummaryBanner } from './SummaryBanner';
+import { BuyingInputPanel } from './BuyingInputPanel';
+import { BuyingForecastTable } from './BuyingForecastTable';
+import { BuyingNetWorthChart } from './BuyingNetWorthChart';
+import { SummaryStats } from './SummaryStats';
+import { SuggestionsPanel } from './SuggestionsPanel';
+import { SyncPanel } from './SyncPanel';
+import {
+  getActiveScenarioId,
+  listScenarios,
+  saveScenario,
+  type SavedScenario,
+} from '../lib/sync';
 
 const STORAGE_KEY = 'net-worth-planner-inputs';
-const SAVE_DEBOUNCE_MS = 400;
+const LOCAL_SAVE_DEBOUNCE_MS = 400;
+const CLOUD_SAVE_DEBOUNCE_MS = 2000;
 
 function loadStoredInputs(): BuyingScenarioInputs {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_BUYING_INPUTS;
     const parsed = JSON.parse(raw) as Record<string, unknown>;
-    // Migrate old field names
     if (parsed.householdTFSAContributionRoom == null) {
       const p1 = Number(parsed.person1CurrentTFSAContributionRoom ?? parsed.zakCurrentTFSAContributionRoom ?? 0);
       const p2 = Number(parsed.person2CurrentTFSAContributionRoom ?? parsed.annaCurrentTFSAContributionRoom ?? 0);
@@ -45,26 +54,58 @@ function loadStoredInputs(): BuyingScenarioInputs {
   }
 }
 
-function App() {
+export default function Planner() {
   const [inputs, setInputs] = useState<BuyingScenarioInputs>(loadStoredInputs);
   const [tableOpen, setTableOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [, setScenarios] = useState<SavedScenario[]>([]);
+  const [activeScenarioId, setActiveScenarioIdState] = useState<string | null>(getActiveScenarioId);
+  const localSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cloudSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const loadFromCloud = useCallback(async () => {
+    try {
+      const list = await listScenarios();
+      setScenarios(list);
+      const active = getActiveScenarioId();
+      const match = active ? list.find((s) => s.id === active) : list.find((s) => s.is_default) ?? list[0];
+      if (match) {
+        const merged = { ...DEFAULT_BUYING_INPUTS, ...match.inputs };
+        setInputs(merged);
+        setActiveScenarioIdState(match.id);
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(merged)); } catch { /* */ }
+      }
+    } catch {
+      // API not available or user is offline; fall back to localStorage
+    }
+  }, []);
+
+  useEffect(() => { loadFromCloud(); }, [loadFromCloud]);
 
   useEffect(() => {
-    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    saveTimeoutRef.current = setTimeout(() => {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(inputs));
-      } catch {
-        // ignore quota or private mode
-      }
-      saveTimeoutRef.current = null;
-    }, SAVE_DEBOUNCE_MS);
-    return () => {
-      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    };
+    if (localSaveRef.current) clearTimeout(localSaveRef.current);
+    localSaveRef.current = setTimeout(() => {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(inputs)); } catch { /* */ }
+    }, LOCAL_SAVE_DEBOUNCE_MS);
+    return () => { if (localSaveRef.current) clearTimeout(localSaveRef.current); };
   }, [inputs]);
+
+  useEffect(() => {
+    if (cloudSaveRef.current) clearTimeout(cloudSaveRef.current);
+    cloudSaveRef.current = setTimeout(async () => {
+      try {
+        setSyncStatus('saving');
+        const saved = await saveScenario(inputs, 'My Scenario', activeScenarioId ?? undefined, true);
+        setActiveScenarioIdState(saved.id);
+        setSyncStatus('saved');
+        setTimeout(() => setSyncStatus('idle'), 2000);
+      } catch {
+        setSyncStatus('error');
+      }
+    }, CLOUD_SAVE_DEBOUNCE_MS);
+    return () => { if (cloudSaveRef.current) clearTimeout(cloudSaveRef.current); };
+  }, [inputs, activeScenarioId]);
 
   const rows = useMemo(() => runBuyingProjection(inputs), [inputs]);
   const buyNowRows = useMemo(() => {
@@ -91,11 +132,7 @@ function App() {
   };
 
   const handleResetToDefaults = () => {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      // ignore
-    }
+    try { localStorage.removeItem(STORAGE_KEY); } catch { /* */ }
     setInputs(DEFAULT_BUYING_INPUTS);
   };
 
@@ -104,6 +141,7 @@ function App() {
       <div className="p-3 border-b border-slate-800 flex items-center justify-between">
         <h2 className="font-display text-sm font-semibold text-slate-200">Assumptions</h2>
         <div className="flex items-center gap-3">
+          <SyncPanel status={syncStatus} />
           <button
             type="button"
             onClick={handleResetToDefaults}
@@ -136,12 +174,10 @@ function App() {
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col">
       <div className="flex flex-1 min-h-0 w-full max-w-[1800px] mx-auto">
-        {/* Desktop sidebar: always visible on lg+ */}
         <aside className="hidden lg:flex w-[320px] shrink-0 border-r border-slate-800 bg-slate-900/30 overflow-y-auto flex-col">
           {sidebarContent}
         </aside>
 
-        {/* Mobile drawer overlay: visible when toggled on < lg */}
         {sidebarOpen && (
           <div className="lg:hidden fixed inset-0 z-50 flex flex-col bg-slate-950/95 backdrop-blur-sm">
             <div className="flex-1 overflow-y-auto">
@@ -150,7 +186,6 @@ function App() {
           </div>
         )}
 
-        {/* Main: results always visible */}
         <main className="flex-1 min-w-0 flex flex-col overflow-auto">
           <div className="p-3 sm:p-4 lg:p-6 space-y-4">
             <header>
@@ -158,7 +193,7 @@ function App() {
                 Your net worth, mapped
               </h1>
               <p className="mt-0.5 text-slate-400 text-sm">
-                See how housing, investments, and tax choices play out. Your data is saved in this browser.
+                See how housing, investments, and tax choices play out. Your data syncs automatically.
               </p>
             </header>
 
@@ -207,7 +242,6 @@ function App() {
         </main>
       </div>
 
-      {/* Mobile floating button to open assumptions */}
       <button
         type="button"
         onClick={() => setSidebarOpen(true)}
@@ -228,5 +262,3 @@ function App() {
     </div>
   );
 }
-
-export default App;

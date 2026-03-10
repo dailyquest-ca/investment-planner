@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { getDownPaymentAllocation, type BuyingScenarioInputs, type RetirementAccountType } from '../types/buying';
 import type { BuyingYearRow } from '../lib/buyingProjection';
