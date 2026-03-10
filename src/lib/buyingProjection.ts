@@ -22,19 +22,15 @@
 import {
   getDownPaymentAllocation,
   getDownPaymentAllocationFromBalances,
-  RRSP_ANNUAL_MAX,
   type BuyingScenarioInputs,
 } from '../types/buying';
 import { calculateIncomeTax } from './canadianTax';
+import { calculateMortgageInsurance } from './canadianMortgageInsurance';
+import { calcMonthlyPayment, monthlyAmortizationSplit } from './domain/mortgage';
+import { maxHelocBalance } from './domain/heloc';
+import { newRrspRoom } from './domain/accounts';
 
 const MONTHS_PER_YEAR = 12;
-
-/** HELOC cap: (1) mortgage + HELOC ≤ 80% of property value; (2) HELOC ≤ 65% of property value. */
-function maxHelocBalance(propertyValue: number, mortgageBalance: number): number {
-  const cap80LTV = Math.max(0, 0.8 * propertyValue - mortgageBalance);
-  const cap65Property = 0.65 * propertyValue;
-  return Math.min(cap80LTV, cap65Property);
-}
 
 export interface BuyingYearRow {
   year: number;
@@ -87,14 +83,10 @@ export interface BuyingYearRow {
   helocDividendBalance: number;
   helocGrowthBalance: number;
   helocNetEquity: number;
+  /** One-time CMHC mortgage insurance premium (non-zero only in the purchase year). */
+  mortgageInsurancePremium: number;
 }
 
-function calcMonthlyPayment(principal: number, annualRatePercent: number, remainingMonths: number): number {
-  if (remainingMonths <= 0 || principal <= 0) return 0;
-  const r = (annualRatePercent / 100) / MONTHS_PER_YEAR;
-  if (r === 0) return principal / remainingMonths;
-  return (principal * r * Math.pow(1 + r, remainingMonths)) / (Math.pow(1 + r, remainingMonths) - 1);
-}
 
 export function runBuyingProjection(inputs: BuyingScenarioInputs): BuyingYearRow[] {
   const projectionYears = Math.max(1, inputs.lifeExpectancy - inputs.currentAge);
@@ -106,6 +98,10 @@ export function runBuyingProjection(inputs: BuyingScenarioInputs): BuyingYearRow
 
   const startYear = new Date().getFullYear();
   const downPayment = (inputs.buyAmount * inputs.percentageDownpayment) / 100;
+  const mortgageInsurance = buyingHouse
+    ? calculateMortgageInsurance(inputs.buyAmount, inputs.percentageDownpayment, inputs.mortgageAmortizationYears)
+    : null;
+  const insurancePremium = mortgageInsurance?.eligible ? mortgageInsurance.premiumAmount : 0;
 
   const incomeGrowth = 1 + inputs.yearlyRateOfIncrease / 100;
   const expenseInflation = 1 + inputs.expenseInflationRate / 100;
@@ -167,7 +163,7 @@ export function runBuyingProjection(inputs: BuyingScenarioInputs): BuyingYearRow
       tfsaRoomRegained += pendingTfsaRegain;
       pendingTfsaRegain = 0;
       if (y > 0) {
-        rrspRoomAvailable += Math.min(0.18 * priorYearGrossIncome, RRSP_ANNUAL_MAX);
+        rrspRoomAvailable += newRrspRoom(priorYearGrossIncome);
       }
       const yearlyRent = monthlyRent * MONTHS_PER_YEAR * Math.pow(rentGrowth, y);
       const tfsaRoomAvailable = totalTfsaRoomInitial + annualTfsaRoomIncrease * y - tfsaRoomUsed + tfsaRoomRegained;
@@ -348,6 +344,7 @@ export function runBuyingProjection(inputs: BuyingScenarioInputs): BuyingYearRow
         helocDividendBalance: 0,
         helocGrowthBalance: 0,
         helocNetEquity: 0,
+        mortgageInsurancePremium: 0,
       });
       priorYearGrossIncome = grossIncome;
       grossIncome *= incomeGrowth;
@@ -364,7 +361,7 @@ export function runBuyingProjection(inputs: BuyingScenarioInputs): BuyingYearRow
       tfsaBalance -= amountFromTFSA;
       rrspBalance -= amountFromRRSP;
       pendingTfsaRegain = amountFromTFSA;
-      loanBalance = inputs.buyAmount - downPayment;
+      loanBalance = inputs.buyAmount - downPayment + insurancePremium;
       totalMonths = inputs.mortgageAmortizationYears * MONTHS_PER_YEAR;
       monthsRemaining = totalMonths;
       mortgageRate = inputs.mortgageRateInitial;
@@ -384,7 +381,7 @@ export function runBuyingProjection(inputs: BuyingScenarioInputs): BuyingYearRow
     tfsaBalance -= amountFromTFSA;
     rrspBalance -= amountFromRRSP;
     pendingTfsaRegain = amountFromTFSA;
-    loanBalance = inputs.buyAmount - downPayment;
+    loanBalance = inputs.buyAmount - downPayment + insurancePremium;
     totalMonths = inputs.mortgageAmortizationYears * MONTHS_PER_YEAR;
     monthsRemaining = totalMonths;
     mortgageRate = inputs.mortgageRateInitial;
@@ -405,8 +402,7 @@ export function runBuyingProjection(inputs: BuyingScenarioInputs): BuyingYearRow
 
     // --- RRSP room accumulation (18% of prior year income, capped) ---
     if (y > 0) {
-      const newRoom = Math.min(0.18 * priorYearGrossIncome, RRSP_ANNUAL_MAX);
-      rrspRoomAvailable += newRoom;
+      rrspRoomAvailable += newRrspRoom(priorYearGrossIncome);
     }
 
     // --- Mortgage rate change (years from purchase) ---
@@ -420,14 +416,12 @@ export function runBuyingProjection(inputs: BuyingScenarioInputs): BuyingYearRow
     let yearInterest = 0;
     for (let m = 0; m < MONTHS_PER_YEAR; m++) {
       if (loanBalance <= 0) break;
-      const monthInterest = (loanBalance * (mortgageRate / 100)) / MONTHS_PER_YEAR;
-      const monthPrinciple = Math.min(payment - monthInterest, loanBalance);
-      yearInterest += monthInterest;
-      yearPrinciple += monthPrinciple;
-      loanBalance -= monthPrinciple;
+      const split = monthlyAmortizationSplit(loanBalance, mortgageRate, payment);
+      yearInterest += split.interest;
+      yearPrinciple += split.principal;
+      loanBalance = split.newBalance;
       monthsRemaining--;
     }
-    if (loanBalance < 0) loanBalance = 0;
     if (loanBalance <= 0) payment = 0;
 
     totalPrinciplePaid += yearPrinciple;
@@ -736,6 +730,7 @@ export function runBuyingProjection(inputs: BuyingScenarioInputs): BuyingYearRow
       helocDividendBalance,
       helocGrowthBalance,
       helocNetEquity,
+      mortgageInsurancePremium: y === yStart ? insurancePremium : 0,
     });
 
     // --- End-of-year escalation ---

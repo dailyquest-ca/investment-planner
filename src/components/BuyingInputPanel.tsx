@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { getDownPaymentAllocation, type BuyingScenarioInputs, type RetirementAccountType } from '../types/buying';
 import type { BuyingYearRow } from '../lib/buyingProjection';
+import { calculateMortgageInsurance } from '../lib/canadianMortgageInsurance';
 import { CollapsibleSection } from './CollapsibleSection';
 
 const RETIREMENT_ACCOUNT_OPTIONS: { value: RetirementAccountType; label: string }[] = [
@@ -221,6 +222,7 @@ function FieldGrid({
 
 export function BuyingInputPanel({ values, onChange, onWithdrawalOrderChange, retirementMonthlyHousing, firstYearRow }: BuyingInputPanelProps) {
   const allocation = getDownPaymentAllocation(values);
+  const insurance = calculateMortgageInsurance(values.buyAmount, values.percentageDownpayment, values.mortgageAmortizationYears);
   const order: RetirementAccountType[] =
     values.retirementWithdrawalOrder?.length === 4 ? values.retirementWithdrawalOrder : ['RRSP', 'NonRegistered', 'HELOC', 'TFSA'];
 
@@ -317,11 +319,25 @@ export function BuyingInputPanel({ values, onChange, onWithdrawalOrderChange, re
           <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">Purchase</p>
           <FieldGrid fields={BUYING_FIELDS} values={values} onChange={onChange} />
           {isBuying && (
-            <div className="pt-2 border-t border-slate-700/80 text-xs">
-              <p className="text-slate-500">Down payment</p>
-              <p className="text-slate-300 mt-0.5">
-                {fmtCurrency(allocation.downPayment)} → FHSA {fmtCurrency(allocation.amountFromFHSA)}, RRSP {fmtCurrency(allocation.amountFromRRSP)}, TFSA {fmtCurrency(allocation.amountFromTFSA)}
-              </p>
+            <div className="pt-2 border-t border-slate-700/80 text-xs space-y-1.5">
+              <div>
+                <p className="text-slate-500">Down payment</p>
+                <p className="text-slate-300 mt-0.5">
+                  {fmtCurrency(allocation.downPayment)} → FHSA {fmtCurrency(allocation.amountFromFHSA)}, RRSP {fmtCurrency(allocation.amountFromRRSP)}, TFSA {fmtCurrency(allocation.amountFromTFSA)}
+                </p>
+              </div>
+              {values.percentageDownpayment < 20 && (
+                <div>
+                  <p className="text-slate-500">Mortgage insurance (CMHC)</p>
+                  {insurance.eligible ? (
+                    <p className="text-amber-400 mt-0.5">
+                      {fmtCurrency(insurance.premiumAmount)} ({(insurance.premiumRate * 100).toFixed(1)}% of mortgage) — added to loan
+                    </p>
+                  ) : (
+                    <p className="text-rose-400 mt-0.5">{insurance.reason}</p>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

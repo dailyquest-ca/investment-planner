@@ -95,7 +95,8 @@ const COLUMN_GROUPS: ColumnGroup[] = [
     color: '#0ea5e9',
     columns: [
       { key: 'propertyValue', label: 'Property Value', format: 'currency', formula: 'Grows at appreciation rate yearly', defaultVisible: true },
-      { key: 'mortgageBalance', label: 'Mortgage Bal.', format: 'currency', formula: 'Prior balance − principal paid this year', defaultVisible: true },
+      { key: 'mortgageInsurancePremium', label: 'CMHC Insurance', format: 'currency', formula: 'One-time premium for <20% down, added to mortgage' },
+      { key: 'mortgageBalance', label: 'Mortgage Bal.', format: 'currency', formula: 'Prior balance − principal paid this year (includes insurance premium)', defaultVisible: true },
       { key: 'houseEquity', label: 'House Equity', format: 'currency', formula: 'Property value − mortgage balance', defaultVisible: true },
       { key: 'mortgageInterestRate', label: 'Rate', format: 'percent', formula: 'Initial rate → new rate after term' },
       { key: 'yearlyPayment', label: 'Yearly Payment', format: 'currency', formula: 'Principal + interest paid this year' },
