@@ -20,15 +20,26 @@
  */
 
 import {
-  getDownPaymentAllocation,
-  getDownPaymentAllocationFromBalances,
+  RRSP_FTHB_LIMIT,
   type BuyingScenarioInputs,
 } from '../types/buying';
+import { minimumDownPaymentForPrice } from './canadianMortgageInsurance';
 import { calculateIncomeTax } from './canadianTax';
 import { calculateMortgageInsurance } from './canadianMortgageInsurance';
 import { calcMonthlyPayment, monthlyAmortizationSplit } from './domain/mortgage';
 import { maxHelocBalance } from './domain/heloc';
 import { newRrspRoom } from './domain/accounts';
+import { computePurchaseCosts, type PurchaseCostBreakdown } from './bcPurchaseTaxes';
+
+export interface ClosingCashFunding {
+  totalCashNeeded: number;
+  fromCashOnHand: number;
+  fromFHSA: number;
+  fromRRSP: number;
+  fromTFSA: number;
+  fromNonRegistered: number;
+  shortfall: number;
+}
 
 const MONTHS_PER_YEAR = 12;
 
@@ -85,6 +96,20 @@ export interface BuyingYearRow {
   helocNetEquity: number;
   /** One-time CMHC mortgage insurance premium (non-zero only in the purchase year). */
   mortgageInsurancePremium: number;
+
+  /** BC PTT paid (non-zero only in the purchase year). */
+  closingPtt: number;
+  /** GST on new build paid (non-zero only in the purchase year). */
+  closingGst: number;
+  /** Total cash needed at closing, excluding mortgage (non-zero only in the purchase year). */
+  closingCashRequired: number;
+  /** Final mortgage amount after CMHC premium (non-zero only in the purchase year). */
+  finalMortgageAmount: number;
+
+  /** Full purchase-cost breakdown (non-null only in the purchase year). */
+  purchaseCosts: PurchaseCostBreakdown | null;
+  /** How closing cash was funded (non-null only in the purchase year). */
+  closingCashFunding: ClosingCashFunding | null;
 }
 
 
@@ -97,9 +122,14 @@ export function runBuyingProjection(inputs: BuyingScenarioInputs): BuyingYearRow
   const rentYears = buyingHouse ? yearsUntilPurchase : projectionYears;
 
   const startYear = new Date().getFullYear();
-  const downPayment = (inputs.buyAmount * inputs.percentageDownpayment) / 100;
+  const minDP = minimumDownPaymentForPrice(inputs.buyAmount);
+  const downPayment = Math.max(minDP, inputs.downPaymentAmount);
+  const dpPercent = inputs.buyAmount > 0 ? (downPayment / inputs.buyAmount) * 100 : 0;
   const mortgageInsurance = buyingHouse
-    ? calculateMortgageInsurance(inputs.buyAmount, inputs.percentageDownpayment, inputs.mortgageAmortizationYears)
+    ? calculateMortgageInsurance(inputs.buyAmount, dpPercent, inputs.mortgageAmortizationYears, {
+        isFirstTimeHomeBuyer: inputs.isFirstTimeHomeBuyer,
+        isNewBuild: inputs.isNewBuild,
+      })
     : null;
   const insurancePremium = mortgageInsurance?.eligible ? mortgageInsurance.premiumAmount : 0;
 
@@ -145,6 +175,8 @@ export function runBuyingProjection(inputs: BuyingScenarioInputs): BuyingYearRow
   let helocBalance = 0;
   let helocDividendBalance = 0;
   let helocGrowthBalance = 0;
+  let purchaseYearCosts: PurchaseCostBreakdown | null = null;
+  let purchaseYearFunding: ClosingCashFunding | null = null;
 
   const growthFirstRampYears = inputs.helocGrowthFirst ? 5 : 0;
   const growthFirstCutoffYear = inputs.helocGrowthFirst
@@ -345,6 +377,12 @@ export function runBuyingProjection(inputs: BuyingScenarioInputs): BuyingYearRow
         helocGrowthBalance: 0,
         helocNetEquity: 0,
         mortgageInsurancePremium: 0,
+        closingPtt: 0,
+        closingGst: 0,
+        closingCashRequired: 0,
+        finalMortgageAmount: 0,
+        purchaseCosts: null,
+        closingCashFunding: null,
       });
       priorYearGrossIncome = grossIncome;
       grossIncome *= incomeGrowth;
@@ -352,16 +390,35 @@ export function runBuyingProjection(inputs: BuyingScenarioInputs): BuyingYearRow
     }
     // Purchase event only when buying and we had a pre-purchase phase
     if (buyingHouse && yearsUntilPurchase > 0) {
-      const { amountFromRRSP, amountFromTFSA } = getDownPaymentAllocationFromBalances(
+      purchaseYearCosts = computePurchaseCosts({
+        purchasePrice: inputs.buyAmount,
         downPayment,
+        cmhcPremium: insurancePremium,
+        isFirstTimeHomeBuyer: inputs.isFirstTimeHomeBuyer,
+        isNewBuild: inputs.isNewBuild,
+        manualLegalFees: inputs.manualLegalFees,
+        manualInspectionFees: inputs.manualInspectionFees,
+        manualOtherClosingCosts: inputs.manualOtherClosingCosts,
+      });
+
+      purchaseYearFunding = allocateClosingCash(
+        purchaseYearCosts.totalCashAtClosing,
+        inputs.futurePurchaseCash,
         inputs.currentFHSABalance,
         rrspBalance,
         tfsaBalance,
+        nonRegisteredBalance,
       );
-      tfsaBalance -= amountFromTFSA;
-      rrspBalance -= amountFromRRSP;
-      pendingTfsaRegain = amountFromTFSA;
-      loanBalance = inputs.buyAmount - downPayment + insurancePremium;
+
+      tfsaBalance -= purchaseYearFunding.fromTFSA;
+      rrspBalance -= purchaseYearFunding.fromRRSP;
+      if (purchaseYearFunding.fromNonRegistered > 0 && nonRegisteredBalance > 0) {
+        nonRegisteredCostBasis *= (nonRegisteredBalance - purchaseYearFunding.fromNonRegistered) / nonRegisteredBalance;
+        nonRegisteredBalance -= purchaseYearFunding.fromNonRegistered;
+      }
+      pendingTfsaRegain = purchaseYearFunding.fromTFSA;
+
+      loanBalance = purchaseYearCosts.finalMortgage;
       totalMonths = inputs.mortgageAmortizationYears * MONTHS_PER_YEAR;
       monthsRemaining = totalMonths;
       mortgageRate = inputs.mortgageRateInitial;
@@ -375,13 +432,37 @@ export function runBuyingProjection(inputs: BuyingScenarioInputs): BuyingYearRow
   // Rent-only: no purchase or owning phase
   if (!buyingHouse) return rows;
 
-  // Buy now (no prior rent years): apply down payment from initial balances
+  // Buy now (no prior rent years): unified allocation covers DP + closing costs
   if (rentYears === 0) {
-    const { amountFromRRSP, amountFromTFSA } = getDownPaymentAllocation(inputs);
-    tfsaBalance -= amountFromTFSA;
-    rrspBalance -= amountFromRRSP;
-    pendingTfsaRegain = amountFromTFSA;
-    loanBalance = inputs.buyAmount - downPayment + insurancePremium;
+    purchaseYearCosts = computePurchaseCosts({
+      purchasePrice: inputs.buyAmount,
+      downPayment,
+      cmhcPremium: insurancePremium,
+      isFirstTimeHomeBuyer: inputs.isFirstTimeHomeBuyer,
+      isNewBuild: inputs.isNewBuild,
+      manualLegalFees: inputs.manualLegalFees,
+      manualInspectionFees: inputs.manualInspectionFees,
+      manualOtherClosingCosts: inputs.manualOtherClosingCosts,
+    });
+
+    purchaseYearFunding = allocateClosingCash(
+      purchaseYearCosts.totalCashAtClosing,
+      inputs.futurePurchaseCash,
+      inputs.currentFHSABalance,
+      inputs.currentRRSPBalance,
+      inputs.currentTFSABalance,
+      nonRegisteredBalance,
+    );
+
+    tfsaBalance -= purchaseYearFunding.fromTFSA;
+    rrspBalance -= purchaseYearFunding.fromRRSP;
+    if (purchaseYearFunding.fromNonRegistered > 0 && nonRegisteredBalance > 0) {
+      nonRegisteredCostBasis *= (nonRegisteredBalance - purchaseYearFunding.fromNonRegistered) / nonRegisteredBalance;
+      nonRegisteredBalance -= purchaseYearFunding.fromNonRegistered;
+    }
+    pendingTfsaRegain = purchaseYearFunding.fromTFSA;
+
+    loanBalance = purchaseYearCosts.finalMortgage;
     totalMonths = inputs.mortgageAmortizationYears * MONTHS_PER_YEAR;
     monthsRemaining = totalMonths;
     mortgageRate = inputs.mortgageRateInitial;
@@ -731,7 +812,18 @@ export function runBuyingProjection(inputs: BuyingScenarioInputs): BuyingYearRow
       helocGrowthBalance,
       helocNetEquity,
       mortgageInsurancePremium: y === yStart ? insurancePremium : 0,
+      closingPtt: y === yStart && purchaseYearCosts ? purchaseYearCosts.pttNet : 0,
+      closingGst: y === yStart && purchaseYearCosts ? purchaseYearCosts.gstNet : 0,
+      closingCashRequired: y === yStart && purchaseYearCosts ? purchaseYearCosts.totalCashAtClosing : 0,
+      finalMortgageAmount: y === yStart && purchaseYearCosts ? purchaseYearCosts.finalMortgage : 0,
+      purchaseCosts: y === yStart ? purchaseYearCosts : null,
+      closingCashFunding: y === yStart ? purchaseYearFunding : null,
     });
+
+    if (y === yStart) {
+      purchaseYearCosts = null;
+      purchaseYearFunding = null;
+    }
 
     // --- End-of-year escalation ---
     priorYearGrossIncome = grossIncome;
@@ -743,4 +835,120 @@ export function runBuyingProjection(inputs: BuyingScenarioInputs): BuyingYearRow
   }
 
   return rows;
+}
+
+/**
+ * Allocate the full cash needed at closing (DP + PTT + GST + manual fees) from
+ * available sources in priority order.
+ *
+ * Order: Cash on hand -> FHSA -> RRSP (capped at HBP limit) -> TFSA -> Non-Registered.
+ */
+export function allocateClosingCash(
+  totalCashNeeded: number,
+  cashOnHand: number,
+  fhsaBalance: number,
+  rrspBalance: number,
+  tfsaBalance: number,
+  nonRegisteredBalance: number,
+): ClosingCashFunding {
+  let remaining = totalCashNeeded;
+
+  const fromCashOnHand = Math.min(remaining, Math.max(0, cashOnHand));
+  remaining -= fromCashOnHand;
+
+  const fromFHSA = Math.min(remaining, Math.max(0, fhsaBalance));
+  remaining -= fromFHSA;
+
+  const fromRRSP = Math.min(remaining, RRSP_FTHB_LIMIT, Math.max(0, rrspBalance));
+  remaining -= fromRRSP;
+
+  const fromTFSA = Math.min(remaining, Math.max(0, tfsaBalance));
+  remaining -= fromTFSA;
+
+  const fromNonRegistered = Math.min(remaining, Math.max(0, nonRegisteredBalance));
+  remaining -= fromNonRegistered;
+
+  return {
+    totalCashNeeded,
+    fromCashOnHand,
+    fromFHSA,
+    fromRRSP,
+    fromTFSA,
+    fromNonRegistered,
+    shortfall: Math.max(0, remaining),
+  };
+}
+
+/**
+ * Compute account balances at the time of purchase so the UI can determine
+ * slider max (all available funds). For buy-now (yearsUntilPurchase === 0)
+ * this returns initial balances directly.
+ */
+export function purchaseTimeBalances(inputs: BuyingScenarioInputs): {
+  fhsa: number;
+  rrsp: number;
+  tfsa: number;
+  nonRegistered: number;
+} {
+  const yup = Math.max(0, inputs.yearsUntilPurchase ?? 0);
+  if (yup === 0) {
+    return {
+      fhsa: inputs.currentFHSABalance,
+      rrsp: inputs.currentRRSPBalance,
+      tfsa: inputs.currentTFSABalance,
+      nonRegistered: 0,
+    };
+  }
+
+  // Run a lightweight forward simulation of the rent years to get balances at purchase
+  const invGrowth = 1 + inputs.investmentGrowthRate / 100;
+  const incomeGrowth = 1 + inputs.yearlyRateOfIncrease / 100;
+  const expenseInflation = 1 + inputs.expenseInflationRate / 100;
+  const rentGrowth = 1 + (inputs.rentIncreasePercent ?? 4) / 100;
+
+  let grossIncome = inputs.householdGrossIncome;
+  let yearlyExpenses = inputs.monthlyNonHousingExpenses * MONTHS_PER_YEAR;
+  let tfsaBalance = inputs.currentTFSABalance;
+  let rrspBalance = inputs.currentRRSPBalance;
+  let nonRegisteredBalance = 0;
+  let tfsaRoomUsed = 0;
+  let rrspRoomAvailable = inputs.currentRRSPRoom;
+  let priorYearGrossIncome = grossIncome;
+
+  for (let y = 0; y < yup; y++) {
+    if (y > 0) {
+      rrspRoomAvailable += newRrspRoom(priorYearGrossIncome);
+    }
+    const yearlyRent = (inputs.monthlyRent ?? 2000) * MONTHS_PER_YEAR * Math.pow(rentGrowth, y);
+    const tfsaRoomAvailable = inputs.householdTFSAContributionRoom + inputs.annualTFSARoomIncrease * y - tfsaRoomUsed;
+    const conservativeTax = calculateIncomeTax(Math.max(0, grossIncome), inputs.numberOfIncomeEarners).totalTax;
+    const conservativeNet = grossIncome - conservativeTax;
+    const available = conservativeNet - yearlyExpenses - yearlyRent;
+
+    let tfsaContrib = 0;
+    let rrspContrib = 0;
+    let nonRegContrib = 0;
+    if (available > 0) {
+      tfsaContrib = Math.min(available, Math.max(0, tfsaRoomAvailable));
+      tfsaRoomUsed += tfsaContrib;
+      rrspContrib = Math.min(available - tfsaContrib, Math.max(0, rrspRoomAvailable));
+      rrspRoomAvailable -= rrspContrib;
+      nonRegContrib = Math.max(0, available - tfsaContrib - rrspContrib);
+    }
+
+    tfsaBalance = tfsaBalance * invGrowth + tfsaContrib;
+    rrspBalance = rrspBalance * invGrowth + rrspContrib;
+    nonRegisteredBalance = nonRegisteredBalance * invGrowth + nonRegContrib;
+
+    priorYearGrossIncome = grossIncome;
+    grossIncome *= incomeGrowth;
+    yearlyExpenses *= expenseInflation;
+  }
+
+  return {
+    fhsa: inputs.currentFHSABalance,
+    rrsp: rrspBalance,
+    tfsa: tfsaBalance,
+    nonRegistered: nonRegisteredBalance,
+  };
 }

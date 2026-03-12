@@ -60,10 +60,40 @@ describe('calculateMortgageInsurance', () => {
     expect(result.reason).toBeDefined();
   });
 
-  it('is not eligible when amortization exceeds 25 years', () => {
+  it('is not eligible when amortization exceeds 25 years (non-qualifying buyer)', () => {
     const result = calculateMortgageInsurance(600_000, 10, 30);
     expect(result.eligible).toBe(false);
     expect(result.reason).toContain('25');
+  });
+
+  it('allows 30-year amortization for first-time home buyers', () => {
+    const result = calculateMortgageInsurance(600_000, 10, 30, { isFirstTimeHomeBuyer: true });
+    expect(result.eligible).toBe(true);
+    expect(result.premiumRate).toBe(0.031);
+  });
+
+  it('allows 30-year amortization for new builds', () => {
+    const result = calculateMortgageInsurance(600_000, 10, 30, { isNewBuild: true });
+    expect(result.eligible).toBe(true);
+    expect(result.premiumRate).toBe(0.031);
+  });
+
+  it('rejects 31-year amortization even for qualifying first-time buyers', () => {
+    const result = calculateMortgageInsurance(600_000, 10, 31, { isFirstTimeHomeBuyer: true });
+    expect(result.eligible).toBe(false);
+    expect(result.reason).toContain('30');
+  });
+
+  it('rejects 30-year amortization when neither first-time nor new-build', () => {
+    const result = calculateMortgageInsurance(600_000, 10, 30, { isFirstTimeHomeBuyer: false, isNewBuild: false });
+    expect(result.eligible).toBe(false);
+    expect(result.reason).toContain('25');
+  });
+
+  it('existing 25-year scenarios still pass with eligibility flags', () => {
+    const result = calculateMortgageInsurance(600_000, 10, 25, { isFirstTimeHomeBuyer: true });
+    expect(result.eligible).toBe(true);
+    expect(result.premiumRate).toBe(0.031);
   });
 
   it('is not eligible when down payment is below the minimum', () => {

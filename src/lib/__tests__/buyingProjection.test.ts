@@ -160,26 +160,24 @@ describe('runBuyingProjection — future purchase', () => {
 
 describe('runBuyingProjection — mortgage insurance', () => {
   it('shows zero insurance premium when down payment is 20%', () => {
-    const rows = scenario({ percentageDownpayment: 20 });
+    const rows = scenario({ downPaymentAmount: 600_000 * 0.20 });
     expect(rows[0].mortgageInsurancePremium).toBe(0);
   });
 
   it('shows non-zero insurance premium when down payment is below 20%', () => {
-    const rows = scenario({ percentageDownpayment: 10, buyAmount: 500_000 });
+    const rows = scenario({ downPaymentAmount: 500_000 * 0.10, buyAmount: 500_000 });
     expect(rows[0].mortgageInsurancePremium).toBeGreaterThan(0);
   });
 
   it('insurance premium only appears in the purchase year', () => {
-    const rows = scenario({ percentageDownpayment: 10, buyAmount: 500_000 });
+    const rows = scenario({ downPaymentAmount: 500_000 * 0.10, buyAmount: 500_000 });
     const premiumRows = rows.filter(r => r.mortgageInsurancePremium > 0);
     expect(premiumRows).toHaveLength(1);
   });
 
   it('insured mortgage balance is higher than base mortgage', () => {
-    const insuredRows = scenario({ percentageDownpayment: 10, buyAmount: 500_000 });
-    const uninsuredRows = scenario({ percentageDownpayment: 20, buyAmount: 500_000 });
-    // 10% down = 450K base + premium vs 20% down = 400K
-    // Insured should be higher even accounting for the different base
+    const insuredRows = scenario({ downPaymentAmount: 500_000 * 0.10, buyAmount: 500_000 });
+    const uninsuredRows = scenario({ downPaymentAmount: 500_000 * 0.20, buyAmount: 500_000 });
     expect(insuredRows[0].mortgageBalance).toBeGreaterThan(uninsuredRows[0].mortgageBalance);
   });
 });

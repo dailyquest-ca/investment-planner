@@ -21,7 +21,8 @@ export interface BuyingScenarioInputs {
   /** Rent increase per year (e.g. Vancouver-style). */
   rentIncreasePercent: number;
   buyAmount: number;
-  percentageDownpayment: number;
+  /** Dollar amount for the down payment. Clamped at runtime to [legal minimum, available funds]. */
+  downPaymentAmount: number;
   startingYearlyTaxes: number;
   startingMonthlyStrata: number;
   appreciationYoY: number;
@@ -72,6 +73,19 @@ export interface BuyingScenarioInputs {
   mortgageRateAfterTerm: number;
   mortgageRateChangeAfterYears: number;
   mortgageAmortizationYears: number;
+
+  // Insured mortgage eligibility
+  /** Qualifies for 30-year insured amortization (CMHC). */
+  isFirstTimeHomeBuyer: boolean;
+  /** Qualifies for 30-year insured amortization (CMHC). */
+  isNewBuild: boolean;
+
+  // Closing costs
+  /** Liquid cash on hand at purchase time (outside registered/non-reg accounts). Applied first in funding waterfall. */
+  futurePurchaseCash: number;
+  manualLegalFees: number;
+  manualInspectionFees: number;
+  manualOtherClosingCosts: number;
 }
 
 /** First-time home buyer RRSP withdrawal limit (Canada). */
@@ -90,7 +104,7 @@ export const DEFAULT_BUYING_INPUTS: BuyingScenarioInputs = {
   monthlyRent: 2_000,
   rentIncreasePercent: 4,
   buyAmount: 600_000,
-  percentageDownpayment: 20,
+  downPaymentAmount: 120_000,
   startingYearlyTaxes: 2_800,
   startingMonthlyStrata: 400,
   appreciationYoY: 4,
@@ -120,36 +134,58 @@ export const DEFAULT_BUYING_INPUTS: BuyingScenarioInputs = {
   mortgageRateAfterTerm: 5,
   mortgageRateChangeAfterYears: 5,
   mortgageAmortizationYears: 25,
+  isFirstTimeHomeBuyer: true,
+  isNewBuild: false,
+  futurePurchaseCash: 5_000,
+  manualLegalFees: 1_500,
+  manualInspectionFees: 500,
+  manualOtherClosingCosts: 500,
 };
 
-/** Computed down payment allocation: FHSA first, then RRSP up to FTHB limit, then TFSA. */
-export function getDownPaymentAllocation(inputs: BuyingScenarioInputs): {
+export interface DownPaymentAllocation {
   downPayment: number;
   amountFromFHSA: number;
   amountFromRRSP: number;
   amountFromTFSA: number;
-} {
-  const downPayment = (inputs.buyAmount * inputs.percentageDownpayment) / 100;
+  amountFromNonRegistered: number;
+}
+
+/** Computed down payment allocation from current input balances: FHSA -> RRSP (HBP) -> TFSA -> Non-registered. */
+export function getDownPaymentAllocation(inputs: BuyingScenarioInputs): DownPaymentAllocation {
   return getDownPaymentAllocationFromBalances(
-    downPayment,
+    inputs.downPaymentAmount,
     inputs.currentFHSABalance,
     inputs.currentRRSPBalance,
     inputs.currentTFSABalance,
+    0,
   );
 }
 
-/** Same allocation logic using explicit balances (e.g. after years of saving). */
+/** Allocation logic using explicit balances (e.g. after years of saving). */
 export function getDownPaymentAllocationFromBalances(
   downPayment: number,
   fhsaBalance: number,
   rrspBalance: number,
   tfsaBalance: number,
-): { downPayment: number; amountFromFHSA: number; amountFromRRSP: number; amountFromTFSA: number } {
+  nonRegisteredBalance: number,
+): DownPaymentAllocation {
   let remaining = downPayment;
   const amountFromFHSA = Math.min(remaining, fhsaBalance);
   remaining -= amountFromFHSA;
   const amountFromRRSP = Math.min(remaining, RRSP_FTHB_LIMIT, rrspBalance);
   remaining -= amountFromRRSP;
   const amountFromTFSA = Math.min(remaining, tfsaBalance);
-  return { downPayment, amountFromFHSA, amountFromRRSP, amountFromTFSA };
+  remaining -= amountFromTFSA;
+  const amountFromNonRegistered = Math.min(remaining, nonRegisteredBalance);
+  return { downPayment, amountFromFHSA, amountFromRRSP, amountFromTFSA, amountFromNonRegistered };
+}
+
+/** Max available funds for a down payment given explicit account balances. */
+export function maxDownPaymentFromBalances(
+  fhsaBalance: number,
+  rrspBalance: number,
+  tfsaBalance: number,
+  nonRegisteredBalance: number,
+): number {
+  return fhsaBalance + Math.min(RRSP_FTHB_LIMIT, rrspBalance) + tfsaBalance + nonRegisteredBalance;
 }

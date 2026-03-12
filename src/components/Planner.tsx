@@ -32,6 +32,10 @@ function loadStoredInputs(): BuyingScenarioInputs {
       const p2 = Number(parsed.person2CurrentTFSAContributionRoom ?? parsed.annaCurrentTFSAContributionRoom ?? 0);
       if (p1 + p2 > 0) parsed.householdTFSAContributionRoom = p1 + p2;
     }
+    // Migrate old percent-based down payment to dollar amount
+    if (parsed.downPaymentAmount == null && typeof parsed.percentageDownpayment === 'number' && typeof parsed.buyAmount === 'number') {
+      parsed.downPaymentAmount = (parsed.buyAmount * parsed.percentageDownpayment) / 100;
+    }
     const keys = Object.keys(DEFAULT_BUYING_INPUTS) as (keyof BuyingScenarioInputs)[];
     const merged = { ...DEFAULT_BUYING_INPUTS };
     for (const k of keys) {
@@ -123,7 +127,14 @@ export default function Planner() {
     if (field === 'numberOfIncomeEarners') {
       setInputs((prev) => ({ ...prev, [field]: value === 1 ? 1 : 2 }));
     } else {
-      setInputs((prev) => ({ ...prev, [field]: value }));
+      setInputs((prev) => {
+        const next = { ...prev, [field]: value };
+        if ((field === 'isFirstTimeHomeBuyer' || field === 'isNewBuild') &&
+            !next.isFirstTimeHomeBuyer && !next.isNewBuild && next.mortgageAmortizationYears > 25) {
+          next.mortgageAmortizationYears = 25;
+        }
+        return next;
+      });
     }
   };
 
@@ -192,8 +203,8 @@ export default function Planner() {
               <h1 className="font-display text-xl sm:text-2xl font-bold text-white tracking-tight">
                 Your net worth, mapped
               </h1>
-              <p className="mt-0.5 text-slate-400 text-sm">
-                See how housing, investments, and tax choices play out. Your data syncs automatically.
+              <p className="mt-0.5 text-slate-400 text-xs sm:text-sm">
+                Model housing, investments, and taxes over your lifetime. Adjust assumptions on the left.
               </p>
             </header>
 
@@ -224,8 +235,8 @@ export default function Planner() {
                   className="w-full flex items-center justify-between px-3 py-2.5 text-left border-b border-slate-700 hover:bg-slate-700/30 transition min-h-[44px]"
                   aria-expanded={tableOpen}
                 >
-                  <span className="font-display text-base font-semibold text-slate-100">
-                    Year-by-year forecast
+                  <span className="font-display text-sm font-semibold text-slate-100">
+                    Detailed forecast
                   </span>
                   <span
                     className="text-slate-500 transition-transform inline-block text-xs"

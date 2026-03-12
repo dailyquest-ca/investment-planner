@@ -98,6 +98,10 @@ const COLUMN_GROUPS: ColumnGroup[] = [
     columns: [
       { key: 'propertyValue', label: 'Property Value', format: 'currency', formula: 'Grows at appreciation rate yearly', defaultVisible: true },
       { key: 'mortgageInsurancePremium', label: 'CMHC Insurance', format: 'currency', formula: 'One-time premium for <20% down, added to mortgage' },
+      { key: 'closingPtt', label: 'PTT', format: 'currency', formula: 'BC Property Transfer Tax (net of exemptions) — cash at closing' },
+      { key: 'closingGst', label: 'GST (build)', format: 'currency', formula: 'GST on new build (net of rebates) — cash at closing' },
+      { key: 'closingCashRequired', label: 'Cash at Closing', format: 'currency', formula: 'Down payment + PTT + GST + fees — total cash needed at purchase' },
+      { key: 'finalMortgageAmount', label: 'Final Mortgage', format: 'currency', formula: 'Purchase price − down payment + CMHC premium' },
       { key: 'mortgageBalance', label: 'Mortgage Bal.', format: 'currency', formula: 'Prior balance − principal paid this year (includes insurance premium)', defaultVisible: true },
       { key: 'houseEquity', label: 'House Equity', format: 'currency', formula: 'Property value − mortgage balance', defaultVisible: true },
       { key: 'mortgageInterestRate', label: 'Rate', format: 'percent', formula: 'Initial rate → new rate after term' },

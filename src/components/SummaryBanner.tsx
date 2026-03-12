@@ -42,26 +42,26 @@ export function SummaryBanner({ rows, buyNowRows, comparisonYear, retirementYear
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
-            At {comparisonYear} {retirementYear === comparisonYear ? '(Retirement)' : ''}
+          <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
+            {retirementYear === comparisonYear ? 'At retirement' : `Year ${comparisonYear}`}
           </p>
           <p className="mt-0.5 text-2xl sm:text-3xl font-display font-bold tabular-nums text-white">
             {fmt(currentNetWorth)}
           </p>
-          <p className="text-sm text-slate-400">Projected net worth</p>
+          <p className="text-xs text-slate-400">Projected net worth</p>
         </div>
         {hasComparison && (
           <div className="text-right">
-            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Rent vs buy</p>
+            <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">Strategy comparison</p>
             <p
               className={`mt-0.5 text-xl sm:text-2xl font-display font-bold tabular-nums ${
                 difference >= 0 ? 'text-emerald-400' : 'text-rose-400'
               }`}
             >
-              {winner} wins by {diffLabel}
+              {winner} +{diffLabel}
             </p>
-            <p className="text-xs text-slate-500">
-              {difference >= 0 ? 'Rent then buy' : 'Buy now'} leads at this horizon
+            <p className="text-[11px] text-slate-500">
+              vs.&nbsp;{difference >= 0 ? 'buying immediately' : 'renting then buying'}
             </p>
           </div>
         )}

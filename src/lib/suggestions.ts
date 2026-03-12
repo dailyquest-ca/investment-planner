@@ -61,8 +61,10 @@ export function getSuggestions(inputs: BuyingScenarioInputs, rows: BuyingYearRow
   }
 
   // Down payment comparison
-  if (inputs.percentageDownpayment < 25 && inputs.buyAmount > 0) {
-    const altInputs: BuyingScenarioInputs = { ...inputs, percentageDownpayment: Math.min(100, inputs.percentageDownpayment + 5) };
+  const dpPercent = inputs.buyAmount > 0 ? (inputs.downPaymentAmount / inputs.buyAmount) * 100 : 0;
+  if (dpPercent < 25 && inputs.buyAmount > 0) {
+    const extraAmount = inputs.buyAmount * 0.05;
+    const altInputs: BuyingScenarioInputs = { ...inputs, downPaymentAmount: inputs.downPaymentAmount + extraAmount };
     const altRows = runBuyingProjection(altInputs);
     const totalInterestCurrent = rows.reduce((sum, r) => sum + r.yearlyMortgageInterestPaid, 0);
     const totalInterestAlt = altRows.reduce((sum, r) => sum + r.yearlyMortgageInterestPaid, 0);
@@ -71,7 +73,7 @@ export function getSuggestions(inputs: BuyingScenarioInputs, rows: BuyingYearRow
       out.push({
         kind: 'tip',
         title: 'Higher down payment could save interest',
-        description: `Putting 5% more down (${fmtCurrency(inputs.buyAmount * 0.05)}) saves ~${fmtCurrency(saved)} in mortgage interest.`,
+        description: `Putting 5% more down (${fmtCurrency(extraAmount)}) saves ~${fmtCurrency(saved)} in mortgage interest.`,
         action: 'Only if you keep enough liquidity for emergencies.',
       });
     }

@@ -46,7 +46,7 @@ Source of truth for test assertions. Rules are from CRA, CMHC, OSFI, and BC prov
 | 20%+ | Not required | CMHC |
 
 - Purchase price must be < $1,000,000.
-- Max insured amortization: 25 years (30 for first-time buyers on new builds).
+- Max insured amortization: 25 years, or 30 years when the borrower is a first-time home buyer OR the property is a new build (effective Dec 15, 2024).
 - Minimum down payment: 5% on first $500K, 10% on portion above $500K.
 - Premium rolled into mortgage principal. **App models this correctly.**
 
@@ -94,6 +94,34 @@ Source of truth for test assertions. Rules are from CRA, CMHC, OSFI, and BC prov
 - Interest deductible when borrowed funds used for income-producing investments (Smith Manoeuvre).
 - **App models these caps correctly.**
 
+## BC Property Transfer Tax (2026)
+
+| Portion of Fair Market Value | Rate | Source |
+|------------------------------|------|--------|
+| First $200K | 1% | BC Gov |
+| $200K–$2M | 2% | BC Gov |
+| Above $2M | 3% | BC Gov |
+
+- **First-time home buyer exemption**: full exemption up to $835K, partial phase-out $835K–$860K.
+- **Newly built home exemption**: full exemption up to $1.1M, partial phase-out $1.1M–$1.15M.
+- PTT is a **cash-at-closing** cost — it is NOT added to the mortgage principal.
+- **App models PTT and both exemptions correctly.**
+
+## Federal GST on New Builds (May 2025+ contracts)
+
+- GST rate: 5% of purchase price.
+- **First-time buyer relief** (May 2025+ rules): 100% of GST rebated for homes ≤ $1M, linearly phasing out between $1M and $1.5M, $0 above $1.5M.
+- GST is a **cash-at-closing** cost — it is NOT added to the mortgage principal.
+- **App models current GST first-time buyer relief correctly.** Legacy (pre-May 2025) rebate rules are not modeled.
+
+## Closing Costs at Purchase
+
+- **CMHC mortgage insurance premium**: rolled into mortgage principal (modeled correctly).
+- **PTT and GST**: cash due at closing (modeled correctly).
+- **Manual fees** (legal, notary, inspection, appraisal, other): cash due at closing.
+- **Funding order for total cash at closing** (DP + PTT + GST + fees): Cash on hand → FHSA → RRSP (HBP, capped at $60K) → TFSA → Non-Registered.
+- Down-payment and closing-cost allocations do **not** double-spend the same account funds.
+
 ## Summary of Discrepancies
 
 | Area | Status | Severity |
@@ -110,3 +138,6 @@ Source of truth for test assertions. Rules are from CRA, CMHC, OSFI, and BC prov
 | Capital gains tiering | Simplified (flat 50%) | Medium |
 | Dividend tax treatment | Missing (taxed as ordinary) | Medium |
 | HELOC caps | Correct | - |
+| BC PTT + exemptions | Correct | - |
+| GST on new builds | Correct (May 2025+ rules) | - |
+| Closing cost funding | Correct | - |

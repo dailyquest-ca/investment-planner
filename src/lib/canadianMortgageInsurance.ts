@@ -4,7 +4,8 @@
  * Rules (as of 2025-2026):
  *  - Required when down payment < 20% of purchase price.
  *  - Purchase price must be < $1,000,000.
- *  - Max amortization 25 years (30 for first-time buyers on new builds — not modelled here).
+ *  - Max amortization 25 years, or 30 years when the borrower is a first-time
+ *    home buyer OR the property is a new build (effective Dec 15, 2024).
  *  - Minimum down payment: 5% on the first $500K, 10% on any portion above $500K.
  *  - Premium is a one-time percentage of the *mortgage amount* (not purchase price),
  *    typically rolled into the mortgage principal.
@@ -12,7 +13,13 @@
 
 const PRICE_TIER_BOUNDARY = 500_000;
 const INSURABLE_PRICE_CAP = 1_000_000;
-const MAX_INSURED_AMORTIZATION_YEARS = 25;
+const BASE_MAX_INSURED_AMORTIZATION = 25;
+const EXTENDED_MAX_INSURED_AMORTIZATION = 30;
+
+export interface InsuredMortgageEligibility {
+  isFirstTimeHomeBuyer?: boolean;
+  isNewBuild?: boolean;
+}
 
 interface InsuranceResult {
   eligible: boolean;
@@ -52,9 +59,12 @@ export function calculateMortgageInsurance(
   purchasePrice: number,
   downPaymentPercent: number,
   amortizationYears: number,
+  eligibility: InsuredMortgageEligibility = {},
 ): InsuranceResult {
   const downPayment = (purchasePrice * downPaymentPercent) / 100;
   const baseMortgage = purchasePrice - downPayment;
+  const qualifiesForExtended = !!(eligibility.isFirstTimeHomeBuyer || eligibility.isNewBuild);
+  const maxAmortization = qualifiesForExtended ? EXTENDED_MAX_INSURED_AMORTIZATION : BASE_MAX_INSURED_AMORTIZATION;
 
   if (downPaymentPercent >= 20) {
     return {
@@ -93,10 +103,10 @@ export function calculateMortgageInsurance(
     };
   }
 
-  if (amortizationYears > MAX_INSURED_AMORTIZATION_YEARS) {
+  if (amortizationYears > maxAmortization) {
     return {
       eligible: false,
-      reason: `Insured mortgages require amortization of ${MAX_INSURED_AMORTIZATION_YEARS} years or less.`,
+      reason: `Insured mortgages require amortization of ${maxAmortization} years or less${!qualifiesForExtended ? ' (30 years for first-time buyers or new builds)' : ''}.`,
       premiumRate: 0,
       premiumAmount: 0,
       baseMortgage,

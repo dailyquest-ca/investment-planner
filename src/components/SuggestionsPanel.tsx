@@ -20,8 +20,8 @@ export function SuggestionsPanel({ suggestions }: SuggestionsPanelProps) {
   if (suggestions.length === 0) {
     return (
       <div className="rounded-xl bg-slate-800/50 border border-slate-700/80 p-4 shadow-lg">
-        <h2 className="font-display text-base font-semibold text-slate-100 mb-1">Suggestions</h2>
-        <p className="text-slate-500 text-xs">No suggestions yet. Adjust your numbers to see tips.</p>
+        <h2 className="font-display text-sm font-semibold text-slate-100 mb-1">Optimization tips</h2>
+        <p className="text-slate-500 text-xs">No tips yet — try adjusting your assumptions.</p>
       </div>
     );
   }
@@ -29,8 +29,8 @@ export function SuggestionsPanel({ suggestions }: SuggestionsPanelProps) {
   return (
     <div className="rounded-xl bg-slate-800/50 border border-slate-700/80 overflow-hidden shadow-lg">
       <div className="px-3 py-2 border-b border-slate-700/80">
-        <h2 className="font-display text-base font-semibold text-slate-100">Suggestions</h2>
-        <p className="text-slate-500 text-[11px]">Ways to improve your outcome</p>
+        <h2 className="font-display text-sm font-semibold text-slate-100">Optimization tips</h2>
+        <p className="text-slate-500 text-[11px]">Adjust inputs on the left to see how these change</p>
       </div>
       <ul className="divide-y divide-slate-700/60">
         {suggestions.map((s, i) => (

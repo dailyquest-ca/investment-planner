@@ -23,15 +23,18 @@ export function SummaryStats({ rows, retirementYear }: SummaryStatsProps) {
     ? workingRows.reduce((s, r) => s + r.incomeTax, 0) / workingRows.reduce((s, r) => s + r.grossIncome, 0)
     : 0;
 
+  const peakRow = rows.reduce((best, r) => (r.netWorth > best.netWorth ? r : best), rows[0]);
+
   const stats = [
-    { label: 'Net worth today', value: fmtCurrency(first.netWorth), sub: `Age ${first.age}`, positive: first.netWorth >= 0 },
-    ...(atRetirement ? [{ label: 'Net worth at retirement', value: fmtCurrency(atRetirement.netWorth), sub: `Age ${atRetirement.age}`, positive: atRetirement.netWorth >= 0 }] : []),
-    { label: `Net worth at age ${last.age}`, value: fmtCurrency(last.netWorth), sub: `Year ${last.year}`, positive: last.netWorth >= 0 },
-    ...(workingRows.length > 0 ? [{ label: 'Avg effective tax rate', value: `${(avgTaxRate * 100).toFixed(1)}%`, sub: 'Federal + BC', positive: undefined }] : []),
+    { label: 'Starting net worth', value: fmtCurrency(first.netWorth), sub: `Age ${first.age}`, positive: first.netWorth >= 0 },
+    ...(atRetirement ? [{ label: 'At retirement', value: fmtCurrency(atRetirement.netWorth), sub: `Age ${atRetirement.age}`, positive: atRetirement.netWorth >= 0 }] : []),
+    { label: 'Peak net worth', value: fmtCurrency(peakRow.netWorth), sub: `Age ${peakRow.age}`, positive: peakRow.netWorth >= 0 },
+    { label: `End of plan`, value: fmtCurrency(last.netWorth), sub: `Age ${last.age} (${last.year})`, positive: last.netWorth >= 0 },
+    ...(workingRows.length > 0 ? [{ label: 'Avg tax rate', value: `${(avgTaxRate * 100).toFixed(1)}%`, sub: 'Federal + BC combined', positive: undefined as boolean | undefined }] : []),
   ];
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
       {stats.map(({ label, value, sub, positive }) => (
         <div
           key={label}

@@ -45,7 +45,7 @@ export function tfsaRoomAvailable(
 }
 
 /**
- * Down-payment allocation: FHSA first, then RRSP (up to HBP limit), then TFSA.
+ * Down-payment allocation: FHSA -> RRSP (up to HBP limit) -> TFSA -> Non-registered.
  * Follows CRA ordering for tax efficiency.
  */
 export function allocateDownPayment(
@@ -53,7 +53,8 @@ export function allocateDownPayment(
   fhsaBalance: number,
   rrspBalance: number,
   tfsaBalance: number,
-): { amountFromFHSA: number; amountFromRRSP: number; amountFromTFSA: number; remainder: number } {
+  nonRegisteredBalance = 0,
+): { amountFromFHSA: number; amountFromRRSP: number; amountFromTFSA: number; amountFromNonRegistered: number; remainder: number } {
   let remaining = downPayment;
 
   const amountFromFHSA = Math.min(remaining, fhsaBalance);
@@ -65,5 +66,8 @@ export function allocateDownPayment(
   const amountFromTFSA = Math.min(remaining, tfsaBalance);
   remaining -= amountFromTFSA;
 
-  return { amountFromFHSA, amountFromRRSP, amountFromTFSA, remainder: remaining };
+  const amountFromNonRegistered = Math.min(remaining, nonRegisteredBalance);
+  remaining -= amountFromNonRegistered;
+
+  return { amountFromFHSA, amountFromRRSP, amountFromTFSA, amountFromNonRegistered, remainder: remaining };
 }

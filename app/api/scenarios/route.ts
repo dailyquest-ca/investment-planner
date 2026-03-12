@@ -5,6 +5,24 @@ function getDb() {
   return neon(process.env.DATABASE_URL!);
 }
 
+async function ensureSchema(sql: ReturnType<typeof getDb>) {
+  await sql`
+    CREATE TABLE IF NOT EXISTS ip_scenarios (
+      id TEXT PRIMARY KEY DEFAULT ('scn_' || substr(md5(random()::text || clock_timestamp()::text), 1, 16)),
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL DEFAULT 'My Scenario',
+      inputs JSONB NOT NULL,
+      is_default BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `;
+  await sql`
+    CREATE INDEX IF NOT EXISTS ip_scenarios_user_id_updated_at_idx
+    ON ip_scenarios (user_id, updated_at DESC)
+  `;
+}
+
 function getUserId(request: NextRequest): string | null {
   return request.headers.get('x-user-id');
 }
@@ -15,6 +33,7 @@ export async function GET(request: NextRequest) {
 
   const sql = getDb();
   try {
+    await ensureSchema(sql);
     const rows = await sql`
       SELECT id, name, inputs, is_default, created_at, updated_at
       FROM ip_scenarios
@@ -34,6 +53,7 @@ export async function POST(request: NextRequest) {
 
   const sql = getDb();
   try {
+    await ensureSchema(sql);
     const body = await request.json();
     const { id, name, inputs, is_default } = body;
 
@@ -82,6 +102,7 @@ export async function DELETE(request: NextRequest) {
 
   const sql = getDb();
   try {
+    await ensureSchema(sql);
     const { searchParams } = new URL(request.url);
     const scenarioId = searchParams.get('id');
     if (!scenarioId) {
