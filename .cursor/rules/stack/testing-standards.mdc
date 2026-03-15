@@ -1,0 +1,69 @@
+---
+description: Testing standards — test levels, file placement, and patterns for TypeScript code.
+globs: "**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+# Testing Standards
+
+Tests live in `src/lib/__tests__/` as `*.test.ts` files. The test runner is **Vitest** (v4+).
+
+The canonical business rules for test assertions are in `src/lib/__tests__/FINANCE_RULES.md`. Write tests against that document, not against current app behavior.
+
+## Choosing the Right Test Level
+
+| Code location | Test type | What to test |
+|---------------|-----------|--------------|
+| `src/lib/*.ts` (pure helpers) | Unit test | Inputs, outputs, edge cases. No mocking needed. |
+| `src/lib/*.ts` (DB-dependent) | Unit test with mocked DB | Business logic, not SQL correctness. |
+| `app/api/**/route.ts` | Integration test with mocked DB | Input validation, status codes, error shapes. |
+| `src/components/` UI helpers | Unit test | Formatting, computation, data transforms. |
+
+Prefer unit tests. Use integration tests for boundaries (API routes, external service calls). Do not write end-to-end tests in this suite.
+
+## Writing Tests
+
+- **Name the test file** after the module: `src/lib/__tests__/buyingProjection.test.ts` tests `src/lib/buyingProjection.ts`.
+- **Describe blocks** mirror the exported function or concept being tested.
+- **Each `it` block** tests one behavior, named as a sentence: `it('caps RRSP at HBP limit')`.
+- **Test the contract, not the implementation.** Assert on return values and side effects, not internal state.
+- **Test against FINANCE_RULES.md**, not against what the code currently does. If the code disagrees with the rule doc, the code is the bug.
+
+```ts
+// GOOD — tests documented rule behavior
+it('uses semi-annual compounding for Canadian mortgages', () => {
+  const rate = 0.05;
+  const monthlyRate = Math.pow(1 + rate / 2, 1 / 6) - 1;
+  expect(calcMonthlyPayment(rate, 25)).toBeCloseTo(expectedFromSemiAnnual);
+});
+
+// BAD — tests current implementation (which may be wrong)
+it('divides annual rate by 12', () => {
+  expect(calcMonthlyRate(0.05)).toBe(0.05 / 12);
+});
+```
+
+## Mocking
+
+- Mock DB modules at the top of the test file with `vi.mock` for any module that touches the database.
+- Use `NextRequest` from `next/server` (via `require`) to construct test requests for API route tests.
+- Do not mock pure helper imports; test them directly.
+
+## Running Tests
+
+- **During development:** `npm run test:watch` re-runs on file changes.
+- **Before finishing work:** `npm test` runs the full suite once and exits.
+- **Targeted run:** `npx vitest run src/lib/__tests__/closingCosts.test.ts` for a single file.
+
+## Anti-patterns
+
+- Do not write snapshot tests for data structures that change frequently.
+- Do not assert on exact error message strings unless the message is part of the API contract.
+- Do not skip (`it.skip`) tests without a comment explaining why and a plan to re-enable.
+
+## Required regression categories for this repo
+
+- Projection invariants: no negative balances, no double-spending, and no unfunded required outflows.
+- Funding waterfall reconciliation: “total cash required at closing” equals sum of funding rows.
+- Cross-mode parity: core accounting rules hold in buy-now, future-purchase, and rent-only modes.
+- Strategy toggles: growth-first/dividend-first and retirement withdrawal order materially affect outputs where expected.

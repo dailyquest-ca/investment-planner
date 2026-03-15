@@ -1,0 +1,42 @@
+---
+description: Projection engine invariants — year-by-year simulation constraints and patterns
+globs: "src/lib/buyingProjection.ts,src/lib/__tests__/**/*.ts"
+alwaysApply: false
+---
+
+# Projection Engine Invariants
+
+The projection engine (`src/lib/buyingProjection.ts`) runs a deterministic year-by-year financial simulation. These invariants must hold.
+
+## Purity
+
+- `runBuyingProjection` is a pure function. Given the same inputs, it must produce the same outputs.
+- Each year's computation depends only on the previous year's state and current year parameters. No mutable external state.
+- No side effects (no console.log, no localStorage, no API calls) inside the projection loop.
+
+## Account balance integrity
+
+- No account balance may go negative. If a withdrawal would overdraw, clamp to zero and track the shortfall.
+- TFSA contribution room regains from withdrawals on January 1 of the **following** year (modeled as `pendingTfsaRegain`).
+- RRSP HBP withdrawals are capped at $60,000 per the rules in `FINANCE_RULES.md`.
+- Do not model any required outflow without modeling its funding source in that same branch/year.
+
+## HELOC constraints
+
+- HELOC balance must never exceed 65% of current property value.
+- Combined mortgage + HELOC must not exceed 80% of property value.
+- HELOC interest is deductible only when funds are used for income-producing investments (Smith Manoeuvre).
+
+## Strategy parameters
+
+- **HELOC strategy**: `dividendFirst` vs `growthFirst` — controlled by `helocGrowthFirst` toggle. Growth-first uses a conversion ramp before retirement.
+- **Retirement withdrawal order**: user-configurable priority list across RRSP, TFSA, HELOC growth, non-registered.
+- **Dividend excess priority**: TFSA → expenses → RRSP → non-registered → HELOC growth.
+
+## Testing approach
+
+- Test projection outputs at specific years (year 1, mid-career, retirement, end-of-plan).
+- Test boundary conditions: zero income, zero down payment, edge-case ages.
+- Test each strategy toggle independently and in combination.
+- Always assert against `FINANCE_RULES.md` for financial calculations.
+- Add branch-parity tests so buy-now, future-purchase, and rent-only paths all satisfy core invariants.

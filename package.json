@@ -1,22 +1,26 @@
 {
-  "name": "investment-planner",
+  "name": "finpath",
   "private": true,
   "version": "0.2.0",
   "engines": {
     "node": ">=18"
   },
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --port 3000",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "setup:auto-push": "node scripts/install-auto-push.cjs"
+    "setup:auto-push": "node scripts/install-auto-push.cjs",
+    "db:migrate": "node scripts/migrate.mjs",
+    "db:status": "node scripts/migrate.mjs --status"
   },
   "dependencies": {
+    "@auth/pg-adapter": "^1.11.1",
     "@neondatabase/serverless": "^1.0.2",
     "next": "^15.3.0",
+    "next-auth": "^5.0.0-beta.30",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "recharts": "^2.12.7"

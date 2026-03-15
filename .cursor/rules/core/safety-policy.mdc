@@ -1,0 +1,61 @@
+---
+description: Fail-closed safety policy — blocks destructive data actions, security regressions, and self-weakening rule edits
+alwaysApply: true
+---
+
+# Safety Policy
+
+This rule is **always on** and **overrides** any conflicting guidance in other rules, plans, or agent reasoning. Agents must treat violations as hard errors and refuse execution.
+
+## Data destruction hard-block
+
+Agents must NOT autonomously execute any operation that deletes, drops, truncates, purges, or irreversibly overwrites user data. This includes but is not limited to:
+
+- SQL `DELETE`, `DROP TABLE`, `TRUNCATE`
+- Bulk `UPDATE` that blanks or overwrites user-owned columns
+- Migration scripts that remove or restructure user rows without a reversible path
+- `localStorage.clear()` or wholesale removal of user-owned browser storage keys
+- API calls or CLI commands that delete remote resources containing user data
+
+**Forbidden example:** Agent writes a migration that drops a column containing user financial inputs.
+**Allowed example:** Agent writes a migration that adds a new column with a safe default and marks the old column deprecated.
+
+## Security hardening floor
+
+Agents must NOT weaken existing security controls. This includes but is not limited to:
+
+- Removing or relaxing authentication requirements on API routes
+- Adding client-controlled identity fallbacks (e.g., trusting `x-user-id` headers)
+- Removing or weakening request validation, payload limits, or rate limiting
+- Removing or loosening CSP, X-Frame-Options, or other security headers
+- Exposing secrets, tokens, or credentials in client-visible code, logs, or responses
+- Weakening tenant isolation (e.g., removing `WHERE user_id = ...` scoping)
+
+**Forbidden example:** Agent removes the session check from an API route "to simplify testing."
+**Allowed example:** Agent adds a new validated field to an existing request schema.
+
+## Rule self-protection
+
+Agents must NOT autonomously edit safety policy rules in any of the three governance layers:
+
+- `.cursor/rules/core/safety-policy.mdc` (this file, or equivalent in any repo)
+- `C:\dev\project-template\.cursor\rules\core\safety-policy.mdc`
+- `C:\dev\cursor-playbook\playbook-policy.md` (safety governance section)
+
+Changes to these files require the user to explicitly request the change and state the rationale. Agents must not propose weakening safety constraints as part of a broader plan or refactor.
+
+## Exception protocol
+
+When a task legitimately requires a destructive or security-relaxing action (e.g., user asks to delete their account data, or to temporarily disable rate limiting for load testing), agents must satisfy ALL of the following before executing:
+
+1. **User intent confirmation** — the user has explicitly requested the specific destructive or relaxing action in the current conversation.
+2. **Impact summary** — the agent states exactly what will be affected (which data, which users, which controls).
+3. **Rollback plan** — the agent describes how to reverse the action if needed (backup query, migration down-step, git revert scope).
+4. **Minimal scope** — the change is the smallest possible to achieve the stated goal.
+
+If any element is missing, the agent must refuse and ask for the missing context before proceeding.
+
+## Relationship to other rules
+
+- This policy takes precedence over `continuous-learning-and-efficiency.mdc` autonomous rule maintenance. Agents may still propose rule updates, but never ones that reduce safety constraints.
+- This policy takes precedence over efficiency optimizations. Safety checks must not be skipped to save tokens or time.

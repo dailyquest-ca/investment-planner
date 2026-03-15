@@ -1,0 +1,56 @@
+---
+description: Canadian finance rules — tax, mortgage, registered accounts, and BC-specific regulations
+globs: "src/lib/**/*.ts"
+alwaysApply: false
+---
+
+# Canadian Finance Rules
+
+This app models Canadian (specifically BC) financial rules for the 2026 tax year. The canonical reference for all rules and their sources is `src/lib/__tests__/FINANCE_RULES.md`.
+
+## Rule authority
+
+When implementing or modifying financial calculations, always check `FINANCE_RULES.md` first. If the code disagrees with the rule document, the code is the bug (unless the rule document itself needs updating with a cited authoritative source).
+
+## Key rules to enforce
+
+### Mortgage compounding
+Canadian mortgages compound **semi-annually** by law, not monthly. The effective monthly rate is:
+```
+(1 + annual_rate / 2)^(1/6) - 1
+```
+
+### CMHC mortgage insurance
+- Required when down payment < 20% and price < $1M.
+- Tiered premiums: 4.00% (5–9.99% DP), 3.10% (10–14.99%), 2.80% (15–19.99%).
+- Premium rolled into mortgage principal.
+- 30-year amortization only available for first-time buyers OR new builds.
+- Minimum down payment: 5% on first $500K, 10% on portion above $500K.
+
+### Registered accounts
+- **RRSP**: 18% of prior year income or $33,810 (whichever is less). Withdrawals are fully taxable. HBP allows $60K withdrawal for first home.
+- **TFSA**: $7,000/year per person. Withdrawals tax-free. Contribution room regains on Jan 1 of the following year.
+- **FHSA**: $8,000/year, $40,000 lifetime. Contributions deductible. Qualifying withdrawals tax-free.
+
+### BC Property Transfer Tax
+- 1% on first $200K, 2% on $200K–$2M, 3% above $2M.
+- First-time buyer exemption: full up to $835K, phase-out to $860K.
+- New-build exemption: full up to $1.1M, phase-out to $1.15M.
+- PTT is cash-at-closing — NOT added to mortgage.
+
+### GST on new builds
+- 5% of purchase price.
+- First-time buyer relief (May 2025+): 100% rebate for homes ≤ $1M, linear phase-out $1M–$1.5M.
+- GST is cash-at-closing — NOT added to mortgage.
+
+### Closing cost funding waterfall
+Cash on hand → FHSA → RRSP (HBP, capped $60K) → TFSA → Non-Registered.
+Never double-spend the same account balance.
+PTT and GST are cash-at-closing costs and cannot be funded by increasing mortgage principal.
+
+## When modifying financial logic
+
+1. Check `FINANCE_RULES.md` for the relevant rule and its source.
+2. Write or update a test in `src/lib/__tests__/` that asserts the correct behavior per the rule document.
+3. Implement the change.
+4. If the rule document needs updating, cite the authoritative source (CRA, CMHC, OSFI, BC Gov).

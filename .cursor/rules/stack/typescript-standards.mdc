@@ -28,3 +28,10 @@ try {
 **Discriminated unions:** Use for API payloads and state (e.g. `{ status: 'ok'; data } | { status: 'error'; error }`) so branches are type-safe.
 
 **Modern TS:** Use `satisfies` where you need inference plus a type check; use narrowing (type guards, `in`, discriminated fields) instead of assertions when possible.
+
+## Quality checks (must pass for touched code)
+
+- No new `any` without explicit justification.
+- No swallowed errors (`catch {}` or ignored promise rejections).
+- No duplicated business logic when shared utility extraction is straightforward.
+- Prefer pure helpers for domain math and data transforms.

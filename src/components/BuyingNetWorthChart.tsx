@@ -41,10 +41,12 @@ const assetColors: Record<string, string> = {
 
 const assetLabels: Record<string, string> = {
   houseEquity: 'House equity',
+  propertyValue: 'Property value',
+  mortgageBalance: 'Remaining mortgage',
   tfsa: 'TFSA',
   rrsp: 'RRSP',
   nonRegistered: 'Non-registered',
-  helocDividend: 'HELOC dividend',
+  helocDividend: 'HELOC dividend inv.',
   helocGrowth: 'HELOC growth',
   helocDebt: 'HELOC debt',
 };
@@ -66,8 +68,21 @@ function NetWorthTooltip({
   const point = data?.find((d) => d.yearLabel === label) as Record<string, number> | undefined;
   const total = point?.netWorth ?? payload?.[0]?.value ?? 0;
   const isPositive = total >= 0;
+
+  const TOOLTIP_KEYS: string[] = [];
+  if (point) {
+    for (const k of BREAKDOWN_KEYS) {
+      if (k === 'houseEquity') {
+        if (typeof point.propertyValue === 'number' && point.propertyValue !== 0) TOOLTIP_KEYS.push('propertyValue');
+        if (typeof point.mortgageBalance === 'number' && point.mortgageBalance !== 0) TOOLTIP_KEYS.push('mortgageBalance');
+        continue;
+      }
+      if (typeof point[k] === 'number' && point[k] !== 0) TOOLTIP_KEYS.push(k);
+    }
+  }
+
   const breakdown = point
-    ? BREAKDOWN_KEYS.filter((k) => typeof point[k] === 'number' && point[k] !== 0).map((k) => ({ key: k, value: point[k] as number }))
+    ? TOOLTIP_KEYS.map((k) => ({ key: k, value: k === 'mortgageBalance' ? -(point[k] as number) : point[k] as number }))
     : payload
         ?.filter((p) => p.dataKey !== 'netWorth' && typeof p.value === 'number')
         .map((p) => ({ key: p.dataKey, value: p.value })) ?? [];
@@ -76,16 +91,19 @@ function NetWorthTooltip({
     <div className="rounded-lg border border-slate-600 bg-slate-900 px-3 py-2.5 shadow-xl min-w-[200px]">
       <p className="text-xs font-medium text-slate-400 border-b border-slate-700 pb-1.5 mb-2">{label}</p>
       <div className="space-y-1">
-        {breakdown.map(({ key, value }) => (
-          <div key={key} className="flex justify-between gap-4 text-xs">
-            <span className="text-slate-400" style={{ color: assetColors[key] ?? '#94a3b8' }}>
-              {assetLabels[key] ?? key}
-            </span>
-            <span className={key === 'helocDebt' ? 'text-rose-400' : 'text-slate-200'} tabular-nums>
-              {formatCurrency(value)}
-            </span>
-          </div>
-        ))}
+        {breakdown.map(({ key, value }) => {
+          const isNegative = key === 'helocDebt' || key === 'mortgageBalance';
+          return (
+            <div key={key} className="flex justify-between gap-4 text-xs">
+              <span className="text-slate-400" style={{ color: assetColors[key] ?? (key === 'mortgageBalance' ? '#64748b' : key === 'propertyValue' ? assetColors.houseEquity : '#94a3b8') }}>
+                {assetLabels[key] ?? key}
+              </span>
+              <span className={isNegative ? 'text-rose-400' : 'text-slate-200'}>
+                {isNegative ? `−${formatCurrency(Math.abs(value))}` : formatCurrency(value)}
+              </span>
+            </div>
+          );
+        })}
       </div>
       <div className="flex justify-between gap-4 mt-2 pt-2 border-t border-slate-700">
         <span className="text-xs font-semibold text-slate-300">Net worth</span>
@@ -145,6 +163,8 @@ export function BuyingNetWorthChart({ rows, retirementYear }: BuyingNetWorthChar
     yearLabel: compactLabels ? `${r.age}` : `${r.year} (${r.age})`,
     netWorth: Math.round(r.netWorth),
     houseEquity: Math.round(r.houseEquity),
+    propertyValue: Math.round(r.propertyValue),
+    mortgageBalance: Math.round(r.mortgageBalance),
     tfsa: Math.round(r.tfsaBalance),
     rrsp: Math.round(r.rrspBalance),
     nonRegistered: Math.round(r.nonRegisteredBalance),
@@ -317,7 +337,7 @@ export function BuyingNetWorthChart({ rows, retirementYear }: BuyingNetWorthChar
                   <Area type="monotone" dataKey="tfsa" stackId="1" stroke={assetColors.tfsa} fill="url(#fillTfsa)" name="TFSA" />
                   <Area type="monotone" dataKey="rrsp" stackId="1" stroke={assetColors.rrsp} fill="url(#fillRrsp)" name="RRSP (after tax)" />
                   <Area type="monotone" dataKey="nonRegistered" stackId="1" stroke={assetColors.nonRegistered} fill="url(#fillNonReg)" name="Non-Registered" />
-                  <Area type="monotone" dataKey="helocDividend" stackId="1" stroke={assetColors.helocDividend} fill="url(#fillHelocDividend)" name="HELOC dividend" />
+                  <Area type="monotone" dataKey="helocDividend" stackId="1" stroke={assetColors.helocDividend} fill="url(#fillHelocDividend)" name="HELOC dividend inv." />
                   <Area type="monotone" dataKey="helocGrowth" stackId="1" stroke={assetColors.helocGrowth} fill="url(#fillHelocGrowth)" name="HELOC growth" />
                   <Area type="monotone" dataKey="helocDebt" stackId="1" stroke={assetColors.helocDebt} fill={assetColors.helocDebt} fillOpacity={0.3} name="HELOC debt" />
                   <Legend wrapperStyle={{ fontSize: 11 }} formatter={(value) => <span className="text-slate-300">{value}</span>} />

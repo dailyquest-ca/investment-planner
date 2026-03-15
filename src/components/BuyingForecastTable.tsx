@@ -86,7 +86,7 @@ const COLUMN_GROUPS: ColumnGroup[] = [
       { key: 'tfsaBalance', label: 'TFSA', format: 'currency', formula: '(Prior × growth) + contributions − withdrawals', defaultVisible: true },
       { key: 'rrspBalance', label: 'RRSP', format: 'currency', formula: '(Prior × growth) + contributions − withdrawals', defaultVisible: true },
       { key: 'nonRegisteredBalance', label: 'Non-Reg', format: 'currency', formula: '(Prior × growth) + contributions − withdrawals', defaultVisible: true },
-      { key: 'helocDividendBalance', label: 'HELOC Dividend', format: 'currency', formula: 'Grows at dividend rate; never sold; dividends pay HELOC interest' },
+      { key: 'helocDividendBalance', label: 'HELOC Div. Inv.', format: 'currency', formula: 'Grows at dividend rate; never sold; dividends pay HELOC interest' },
       { key: 'helocGrowthBalance', label: 'HELOC Growth', format: 'currency', formula: 'Grows at investment rate; sold during retirement' },
       { key: 'helocNetEquity', label: 'HELOC Net Equity', format: 'currency', formula: '(Dividend + Growth buckets) − HELOC loan balance', defaultVisible: true },
     ],

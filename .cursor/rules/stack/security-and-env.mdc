@@ -1,0 +1,43 @@
+---
+description: Security, environment, and auth operations
+globs: ".env.example,**/route.ts,lib/*.ts,src/lib/auth.ts"
+alwaysApply: false
+---
+
+# Security and Environment
+
+**Never commit:** `.env`, `.env.local`, or any file containing secrets. `.env.example` must list only variable **names** (no values). Document which vars are required vs optional and what they are for.
+
+**Runtime:** Read secrets and config via `process.env` only. If a required secret is missing for the current code path, fail clearly with a safe message. Do not log or expose env var names or values.
+
+## Auth provider operations
+
+- **OAuth redirect URIs:** document expected callback URIs in `.env.example` and `docs/auth-setup.md`. Ensure they match the provider console settings exactly.
+- **Vercel env vars:** paste raw values — Vercel does not strip quotes, so `"value"` becomes a literal string including the quote characters.
+- **Resend sender domain:** `AUTH_EMAIL_FROM` must use a domain verified in the Resend dashboard. Without verification, delivery is limited to the account owner's email.
+- **Google consent screen:** if in Testing mode, only listed test users can complete OAuth. Publish the consent screen for general access.
+- **Account linking:** `allowDangerousEmailAccountLinking` is enabled for Google so users who sign up via email can later use Google (or vice versa) without `OAuthAccountNotLinked` errors.
+
+## Env-target drift
+
+- When `DATABASE_URL` changes (e.g., new Neon project/branch), auth/app tables may not exist in the new target. Re-run migrations (`npm run db:migrate`) after DB target changes.
+- Before debugging auth or persistence issues, verify the runtime DB target matches expectations (check host/database in the connection string).
+
+## Secret rotation
+
+- Rotate `AUTH_SECRET` only during a planned session-reset window (all active sessions will be invalidated).
+- Rotate `AUTH_GOOGLE_SECRET` by generating a new secret in Google Cloud Console and updating Vercel + local env simultaneously.
+- Rotate `AUTH_RESEND_KEY` by generating a new key in Resend dashboard and updating env vars.
+
+## API hardening baseline
+
+- Sensitive API routes must be session-derived identity only (no `x-user-id`-style fallback).
+- Enforce request-body validation and payload-size limits on write endpoints.
+- Enforce baseline abuse controls (rate limit) on API routes.
+- Keep per-user quota limits where writes can grow unbounded (e.g., scenarios per user).
+
+## Operational checks
+
+- Maintain a non-secret health endpoint (`/api/health`) that reports env presence and DB connectivity status.
+- Keep migration-driven schema management in `/migrations`; do not create schema inside request handlers.
+- Keep Vercel environment parity checks across Development / Preview / Production before auth debugging.

@@ -1,0 +1,39 @@
+---
+description: Always improve rules and maximize token efficiency without quality loss
+alwaysApply: true
+---
+
+# Continuous Learning and Efficiency
+
+## Autonomous rule maintenance
+
+After meaningful task completion, agents should proactively evaluate whether new learning should update:
+
+1. global playbook (`C:\dev\cursor-playbook`)
+2. this repo's rules (`.cursor/rules/`)
+3. project template rules (`C:\dev\project-template/.cursor/rules/`) when the improvement is reusable
+
+Do not wait for explicit user instruction to consider these updates. However, updates must never reduce safety constraints defined in `core/safety-policy.mdc`.
+
+## Proposal-first communication
+
+Before editing rules, agents must:
+
+- tell the user the specific rule updates they propose
+- include rule updates in implementation plans when plans are used
+- then apply approved/proceeding updates
+
+## Efficiency requirements
+
+- Minimize context and token usage with no quality regression.
+- Prefer focused file reads/searches over broad exploration.
+- Reuse existing context; avoid re-reading unchanged files.
+- Keep always-on rules short; move specialized logic to file-scoped/optional rules.
+- Choose the lightest tool/model path that still produces correct results.
+- Cap read/search output to the smallest useful scope (target files, bounded matches, narrow globs).
+- Run independent tool calls in parallel; sequence only truly dependent steps.
+- Verify only impacted files/tests first, then broaden if needed.
+
+## Performance floor
+
+Efficiency improvements must never reduce correctness, reliability, or user-visible quality.

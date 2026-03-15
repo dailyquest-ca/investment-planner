@@ -1,6 +1,6 @@
-# Investment Planner
+# Finpath
 
-A web app to project net worth over time, with customizable Canadian tax rules, mortgage calculations, HELOC strategies, and retirement assumptions.
+A web app to plan your financial path — project net worth over time with customizable Canadian tax rules, mortgage calculations, HELOC strategies, and retirement assumptions.
 
 ## Features
 

@@ -2,8 +2,8 @@
 
 import dynamic from 'next/dynamic';
 
-const Planner = dynamic(() => import('../src/components/Planner'), { ssr: false });
+const DashboardPage = dynamic(() => import('../src/components/dashboard/DashboardPage'), { ssr: false });
 
 export default function Home() {
-  return <Planner />;
+  return <DashboardPage />;
 }

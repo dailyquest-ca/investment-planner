@@ -1,14 +1,49 @@
 ---
-description: Project context — stack, entrypoints, and conventions (fill per repo)
+description: Project context — stack, entrypoints, domain, and conventions
 alwaysApply: true
 ---
 
 # Project Context
 
-**This repo:** Brief description — e.g. Next.js app with serverless API and Postgres. Fill per repo.
+**Finpath** — lifetime Canadian wealth planner (Buy vs Rent) with HELOC strategy modeling, registered-account constraints, and retirement projections.
 
-**Stack:** Infer from existing config (next.config, package.json). Use the repo's package manager (pnpm/npm/yarn) and lockfile; do not switch mid-project.
+## Stack (authoritative)
 
-**Key locations:** List main entrypoints — e.g. lib/ for shared logic, app/api/ for routes, schema and DB client paths. Add or remove as needed for this project.
+- Next.js 15 App Router, React 18, TypeScript, Tailwind, Recharts
+- Neon Postgres (`@neondatabase/serverless`) + Vercel
+- Tests: Vitest
+- Package manager: npm
 
-**Conventions:** Note any project-specific norms — e.g. single-tenant vs multi-tenant, how cron or webhook auth is done, naming for env vars. Keep this short; detailed patterns live in other rules.
+## High-signal files
+
+- Engine: `src/lib/buyingProjection.ts`
+- BC purchase taxes: `src/lib/bcPurchaseTaxes.ts`
+- Income tax: `src/lib/canadianTax.ts`
+- Types/defaults: `src/types/buying.ts`
+- App shell: `app/layout.tsx`
+- Dashboard route: `app/page.tsx`, `src/components/dashboard/DashboardPage.tsx`
+- Plan route: `app/plan/page.tsx`, `src/components/planner/PlannerWorkspace.tsx`
+- Track route: `app/track/page.tsx`, `src/components/track/TrackPage.tsx`
+- Settings route: `app/settings/page.tsx`, `src/components/settings/SettingsPage.tsx`
+- Planner sections: `src/components/planner/*`
+- IA source of truth: `design/ia/navigation.md`
+- Persistence API: `app/api/scenarios/route.ts`
+- Canonical rule doc: `src/lib/__tests__/FINANCE_RULES.md`
+
+## Domain anchors
+
+- Funding waterfall: Cash on hand → FHSA → RRSP (HBP cap) → TFSA → Non-Registered
+- HELOC strategy toggle: dividend-first vs growth-first
+- User-configurable retirement withdrawal ordering
+- BC-specific PTT/GST/CMHC handling
+
+## Working conventions
+
+- Treat `FINANCE_RULES.md` as test oracle for domain math.
+- Keep projection logic pure and deterministic.
+- Anonymous users: local draft persistence only (`localStorage`).
+- Authenticated users: session-scoped Neon persistence via `/api/scenarios` (no client-controlled identity fallback).
+- Preserve the top-level product shell: `Dashboard`, `Plan`, `Track`, `Settings`.
+- Treat `Plan` and `Track` as different workflows with different state and UI needs; do not collapse them back into one overloaded page.
+- Check `design/ia/navigation.md` before changing route structure, top-level navigation labels, or planner section grouping.
+- Known discrepancies and intentional gaps are tracked only in `FINANCE_RULES.md` (avoid duplicating them here).

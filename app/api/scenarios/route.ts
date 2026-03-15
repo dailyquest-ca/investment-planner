@@ -1,44 +1,36 @@
 import { neon } from '@neondatabase/serverless';
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '../../../src/lib/auth';
+
+const MAX_PAYLOAD_BYTES = 256 * 1024; // 256 KB
+const MAX_SCENARIOS_PER_USER = 20;
 
 function getDb() {
   return neon(process.env.DATABASE_URL!);
 }
 
-async function ensureSchema(sql: ReturnType<typeof getDb>) {
-  await sql`
-    CREATE TABLE IF NOT EXISTS ip_scenarios (
-      id TEXT PRIMARY KEY DEFAULT ('scn_' || substr(md5(random()::text || clock_timestamp()::text), 1, 16)),
-      user_id TEXT NOT NULL,
-      name TEXT NOT NULL DEFAULT 'My Scenario',
-      inputs JSONB NOT NULL,
-      is_default BOOLEAN NOT NULL DEFAULT false,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-    )
-  `;
-  await sql`
-    CREATE INDEX IF NOT EXISTS ip_scenarios_user_id_updated_at_idx
-    ON ip_scenarios (user_id, updated_at DESC)
-  `;
+async function getAuthUserId(): Promise<string | null> {
+  const session = await auth();
+  if (session?.user?.id) return String(session.user.id);
+  return null;
 }
 
-function getUserId(request: NextRequest): string | null {
-  return request.headers.get('x-user-id');
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
-export async function GET(request: NextRequest) {
-  const userId = getUserId(request);
-  if (!userId) return NextResponse.json({ error: 'Missing x-user-id header' }, { status: 400 });
+export async function GET() {
+  const userId = await getAuthUserId();
+  if (!userId) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const sql = getDb();
   try {
-    await ensureSchema(sql);
     const rows = await sql`
       SELECT id, name, inputs, is_default, created_at, updated_at
       FROM ip_scenarios
       WHERE user_id = ${userId}
       ORDER BY updated_at DESC
+      LIMIT ${MAX_SCENARIOS_PER_USER}
     `;
     return NextResponse.json(rows);
   } catch (err) {
@@ -48,24 +40,38 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const userId = getUserId(request);
-  if (!userId) return NextResponse.json({ error: 'Missing x-user-id header' }, { status: 400 });
+  const userId = await getAuthUserId();
+  if (!userId) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+
+  const contentLength = Number(request.headers.get('content-length') ?? 0);
+  if (contentLength > MAX_PAYLOAD_BYTES) {
+    return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
+  }
 
   const sql = getDb();
   try {
-    await ensureSchema(sql);
     const body = await request.json();
     const { id, name, inputs, is_default } = body;
 
-    if (!inputs) {
-      return NextResponse.json({ error: 'Missing inputs field' }, { status: 400 });
+    if (!inputs || !isPlainObject(inputs)) {
+      return NextResponse.json({ error: 'Missing or invalid inputs field' }, { status: 400 });
     }
 
+    const inputsJson = JSON.stringify(inputs);
+    if (inputsJson.length > MAX_PAYLOAD_BYTES) {
+      return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
+    }
+
+    const safeName = typeof name === 'string' ? name.slice(0, 100) : 'My Scenario';
+
     if (id) {
+      if (typeof id !== 'string' || id.length > 64) {
+        return NextResponse.json({ error: 'Invalid scenario id' }, { status: 400 });
+      }
       const rows = await sql`
         UPDATE ip_scenarios
-        SET name = ${name ?? 'My Scenario'},
-            inputs = ${JSON.stringify(inputs)},
+        SET name = ${safeName},
+            inputs = ${inputsJson},
             is_default = ${is_default ?? false},
             updated_at = now()
         WHERE id = ${id} AND user_id = ${userId}
@@ -77,6 +83,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(rows[0]);
     }
 
+    const countResult = await sql`
+      SELECT count(*)::int AS cnt FROM ip_scenarios WHERE user_id = ${userId}
+    `;
+    if (countResult[0]?.cnt >= MAX_SCENARIOS_PER_USER) {
+      return NextResponse.json({ error: 'Scenario limit reached' }, { status: 409 });
+    }
+
     if (is_default) {
       await sql`
         UPDATE ip_scenarios SET is_default = false
@@ -86,7 +99,7 @@ export async function POST(request: NextRequest) {
 
     const rows = await sql`
       INSERT INTO ip_scenarios (user_id, name, inputs, is_default)
-      VALUES (${userId}, ${name ?? 'My Scenario'}, ${JSON.stringify(inputs)}, ${is_default ?? false})
+      VALUES (${userId}, ${safeName}, ${inputsJson}, ${is_default ?? false})
       RETURNING id, name, is_default, created_at, updated_at
     `;
     return NextResponse.json(rows[0]);
@@ -97,16 +110,15 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const userId = getUserId(request);
-  if (!userId) return NextResponse.json({ error: 'Missing x-user-id header' }, { status: 400 });
+  const userId = await getAuthUserId();
+  if (!userId) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const sql = getDb();
   try {
-    await ensureSchema(sql);
     const { searchParams } = new URL(request.url);
     const scenarioId = searchParams.get('id');
-    if (!scenarioId) {
-      return NextResponse.json({ error: 'Missing id query param' }, { status: 400 });
+    if (!scenarioId || scenarioId.length > 64) {
+      return NextResponse.json({ error: 'Missing or invalid id query param' }, { status: 400 });
     }
 
     await sql`

@@ -1,6 +1,7 @@
 ---
-description: Balanced always-on core of UX, UI, IA, and accessibility principles for every interaction.
-alwaysApply: true
+description: Core UX/UI/IA/a11y principles for frontend work.
+globs: ["**/*.tsx"]
+alwaysApply: false
 category: core
 tags: [ux, ui, ia, accessibility]
 ---

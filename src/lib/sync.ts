@@ -1,24 +1,6 @@
 import type { BuyingScenarioInputs } from '../types/buying';
 
-const USER_ID_KEY = 'ip-user-id';
 const ACTIVE_SCENARIO_KEY = 'ip-active-scenario-id';
-
-function generateId(): string {
-  return crypto.randomUUID();
-}
-
-export function getUserId(): string {
-  let id = localStorage.getItem(USER_ID_KEY);
-  if (!id) {
-    id = generateId();
-    localStorage.setItem(USER_ID_KEY, id);
-  }
-  return id;
-}
-
-export function setUserId(id: string): void {
-  localStorage.setItem(USER_ID_KEY, id);
-}
 
 export function getActiveScenarioId(): string | null {
   return localStorage.getItem(ACTIVE_SCENARIO_KEY);
@@ -39,15 +21,11 @@ export interface SavedScenario {
 
 const API_BASE = '/api/scenarios';
 
-function headers(): HeadersInit {
-  return {
-    'Content-Type': 'application/json',
-    'x-user-id': getUserId(),
-  };
-}
-
 export async function listScenarios(): Promise<SavedScenario[]> {
-  const res = await fetch(API_BASE, { headers: headers() });
+  const res = await fetch(API_BASE, {
+    headers: { 'Content-Type': 'application/json' },
+  });
+  if (res.status === 401) return [];
   if (!res.ok) throw new Error(`Failed to list scenarios: ${res.status}`);
   return res.json();
 }
@@ -64,7 +42,7 @@ export async function saveScenario(
 
   const res = await fetch(API_BASE, {
     method: 'POST',
-    headers: headers(),
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`Failed to save scenario: ${res.status}`);
@@ -76,16 +54,7 @@ export async function saveScenario(
 export async function deleteScenario(scenarioId: string): Promise<void> {
   const res = await fetch(`${API_BASE}?id=${scenarioId}`, {
     method: 'DELETE',
-    headers: headers(),
+    headers: { 'Content-Type': 'application/json' },
   });
   if (!res.ok) throw new Error(`Failed to delete scenario: ${res.status}`);
-}
-
-export function getSyncCode(): string {
-  return getUserId();
-}
-
-export function applySyncCode(code: string): void {
-  setUserId(code);
-  localStorage.removeItem(ACTIVE_SCENARIO_KEY);
 }

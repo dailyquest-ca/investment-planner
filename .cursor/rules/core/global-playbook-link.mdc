@@ -1,0 +1,43 @@
+---
+description: Link to the global playbook — cross-project knowledge base
+alwaysApply: true
+---
+
+# Global Playbook
+
+This project contributes to and draws from the global playbook at `C:\dev\cursor-playbook\`.
+
+## When to consult the playbook
+
+- Before starting a new pattern or architecture decision, check if the playbook has relevant lessons.
+- After completing meaningful work, add new lessons to the playbook's `lessons-log.md` or the relevant topical file.
+
+## Proposal-first update behavior
+
+- If rule updates are needed, first tell the user what updates are proposed.
+- Include those rule updates in plans when plans are used.
+- Keep global playbook, local repo rules, and reusable template rules aligned.
+
+## When to add to the playbook
+
+A lesson belongs in the global playbook if it would help on a **different project**. Examples:
+- A testing pattern that caught a subtle bug
+- A deployment mistake that cost time
+- A UI pattern that users responded well to
+- A domain modeling technique that kept code clean
+
+Project-specific details (this app's tax brackets, file paths, account types) stay in this repo's `.cursor/rules/domain/` folder.
+
+## Playbook files
+
+| File | Scope |
+|------|-------|
+| `playbook-policy.md` | Append-only governance, safety constraints, exception protocol |
+| `engineering-principles.md` | Code structure, separation of concerns, error handling |
+| `testing-and-tdd.md` | TDD workflow, test design, canonical rule documents |
+| `product-and-ui.md` | UX clarity, progressive disclosure, responsive design |
+| `domain-modeling.md` | Business rule encoding, waterfall patterns, projections |
+| `data-and-persistence.md` | Storage layers, sync, migrations, defaults |
+| `deployment-and-ops.md` | Hosting, CI/CD, DNS, env vars |
+| `ai-collaboration.md` | Rule layering, test-first with AI, plan-before-implement |
+| `lessons-log.md` | Chronological specific lessons |

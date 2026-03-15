@@ -1,0 +1,43 @@
+---
+description: Scenario persistence and sync — localStorage + Auth.js session + Neon Postgres
+globs: "src/lib/sync.ts,src/lib/auth.ts,app/api/scenarios/**/*.ts"
+alwaysApply: false
+---
+
+# Scenario Persistence and Sync
+
+User scenarios use a layered persistence model with authenticated cloud sync.
+
+## Architecture
+
+1. **Local layer** (`localStorage`): Draft-only persistence for anonymous users.
+2. **Remote layer** (Neon Postgres via `app/api/scenarios/route.ts`): Session-authenticated cloud persistence for signed-in users.
+
+## Identity model
+
+- **Anonymous visitors**: planner works with localStorage only. No cloud sync.
+- **Authenticated users** (Auth.js session): server-side `auth()` derives user identity from the session cookie. Scenarios are scoped to the authenticated user ID.
+- The API must not accept caller-controlled identity headers for tenant scoping.
+
+## First-login migration
+
+- When a user signs in and has zero cloud scenarios, the local draft is promoted as the default cloud scenario.
+- If cloud scenarios already exist, local draft does not overwrite them.
+
+## Default data
+
+- New visitors (no `localStorage` data) receive generic defaults defined in `src/types/buying.ts`.
+- Defaults use non-personal values ($100K salary, sample Vancouver-area pricing).
+
+## Sync behavior
+
+- **Authenticated**: cloud save fires on a debounced schedule. Status indicator shows saving/saved/error.
+- **Anonymous**: cloud save is skipped; local draft is authoritative.
+- **Storage minimization**: once authenticated cloud data is loaded, remove local financial draft payloads.
+- Local save failures are silent. Remote sync failures do not block the UI.
+
+## Auth providers
+
+- Email magic link (Resend) and Google OAuth via Auth.js.
+- `allowDangerousEmailAccountLinking` is enabled so users can use either provider for the same email.
+- Provider configuration is in `src/lib/auth.ts`; setup guidance is in `docs/auth-setup.md`.
