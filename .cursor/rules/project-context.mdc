@@ -27,7 +27,10 @@ alwaysApply: true
 - Settings route: `app/settings/page.tsx`, `src/components/settings/SettingsPage.tsx`
 - Planner sections: `src/components/planner/*`
 - IA source of truth: `design/ia/navigation.md`
-- Persistence API: `app/api/scenarios/route.ts`
+- Persistence API (legacy): `app/api/scenarios/route.ts` → `finpath_legacy_scenarios`
+- Persistence API (actuals): `app/api/actuals/route.ts` → `finpath_monthly_actuals`
+- Storage helpers: `src/lib/storage.ts`, `src/lib/actuals.ts`
+- Domain model: `src/types/domain.ts`
 - Canonical rule doc: `src/lib/__tests__/FINANCE_RULES.md`
 
 ## Domain anchors
@@ -42,7 +45,8 @@ alwaysApply: true
 - Treat `FINANCE_RULES.md` as test oracle for domain math.
 - Keep projection logic pure and deterministic.
 - Anonymous users: local draft persistence only (`localStorage`).
-- Authenticated users: session-scoped Neon persistence via `/api/scenarios` (no client-controlled identity fallback).
+- Authenticated users: session-scoped Neon persistence via `/api/scenarios` (legacy) and `/api/actuals` (no client-controlled identity fallback).
+- Database tables use `finpath_` prefix (target model) or `finpath_legacy_` prefix (transitional — do not extend). See `data-and-persistence` rule for details.
 - Preserve the top-level product shell: `Dashboard`, `Plan`, `Track`, `Settings`.
 - Treat `Plan` and `Track` as different workflows with different state and UI needs; do not collapse them back into one overloaded page.
 - Check `design/ia/navigation.md` before changing route structure, top-level navigation labels, or planner section grouping.

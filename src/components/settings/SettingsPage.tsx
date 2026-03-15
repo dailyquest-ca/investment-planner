@@ -2,6 +2,7 @@
 
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
+import { clearAllLocalData } from '../../lib/storage';
 
 export default function SettingsPage() {
   const { data: session, status } = useSession();
@@ -76,11 +77,11 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      {/* Scenario management */}
+      {/* Strategy management */}
       <div className="rounded-xl border border-slate-700/80 bg-slate-800/40 p-5 space-y-3">
-        <h2 className="font-display text-sm font-semibold text-slate-300">Scenarios</h2>
+        <h2 className="font-display text-sm font-semibold text-slate-300">Strategies</h2>
         <p className="text-xs text-slate-400">
-          Scenario management &mdash; save, name, compare, and share multiple plans &mdash; is coming soon.
+          Strategy management &mdash; save, name, compare, and adopt different financial strategies &mdash; is coming soon.
         </p>
       </div>
 
@@ -88,14 +89,14 @@ export default function SettingsPage() {
       <div className="rounded-xl border border-dashed border-rose-500/30 bg-rose-500/5 p-5 space-y-3">
         <h2 className="font-display text-sm font-semibold text-rose-400">Danger zone</h2>
         <p className="text-xs text-slate-400">
-          Reset all assumptions to their default values. This cannot be undone.
+          Reset all local data (assumptions, actuals, and setup state) to defaults. This cannot be undone.
         </p>
         <button
           type="button"
           onClick={() => {
             if (window.confirm('Reset all data to defaults? This cannot be undone.')) {
-              try { localStorage.removeItem('net-worth-planner-inputs'); } catch { /* */ }
-              window.location.href = '/plan';
+              clearAllLocalData();
+              window.location.href = '/';
             }
           }}
           className="px-4 py-2 rounded-md border border-rose-500/40 text-rose-400 text-xs font-medium hover:bg-rose-500/10 transition"

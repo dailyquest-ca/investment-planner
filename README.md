@@ -40,13 +40,15 @@ The app auto-deploys to [Vercel](https://vercel.com) on every push to `main`.
 - **Vercel project**: `investment-planner` (under `dailyquest-ca`)
 - **GitHub repo**: [dailyquest-ca/investment-planner](https://github.com/dailyquest-ca/investment-planner)
 - **Production URL**: [investment-planner.dailyquest.ca](https://investment-planner.dailyquest.ca)
-- **Database**: Neon Postgres (`investment_planner` database)
+- **Database**: Neon Postgres — separate dev and production targets
 
 ### Environment variables
 
 | Variable | Where | Purpose |
 |---|---|---|
-| `DATABASE_URL` | Vercel (Production) | Neon Postgres connection string |
+| `DATABASE_URL` | `.env.local` (dev) / Vercel (Production) | Neon Postgres connection string |
+
+Dev and production use **different** `DATABASE_URL` values pointing to separate Neon databases. Each target must have its migrations applied independently.
 
 ### Auto-push after commit
 
@@ -55,6 +57,27 @@ To have every `git commit` automatically push to `main` (so Vercel deploys witho
 ```bash
 npm run setup:auto-push
 ```
+
+### Production release
+
+Vercel auto-deploys app code, but **database schema changes require an explicit migration step**. When a release includes new or modified files in `migrations/`:
+
+1. Push app code to `main` (triggers Vercel deploy).
+2. Run production migrations:
+   ```bash
+   # Temporarily set DATABASE_URL to the production connection string
+   $env:DATABASE_URL="<production-connection-string>"
+   npm run db:status    # verify pending migrations
+   npm run db:migrate   # apply them
+   ```
+3. Verify the deploy:
+   ```bash
+   curl https://investment-planner.dailyquest.ca/api/health
+   ```
+
+If the release has **no schema changes**, step 2 can be skipped — app code deploys automatically.
+
+> **Rule of thumb**: code deploys are automatic; schema deploys are explicit.
 
 ## Tech stack
 

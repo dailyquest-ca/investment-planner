@@ -142,6 +142,74 @@ export const DEFAULT_BUYING_INPUTS: BuyingScenarioInputs = {
   manualOtherClosingCosts: 500,
 };
 
+/* ── First-time setup ─────────────────────────────────────────────── */
+
+export type HousingStatus = 'renting' | 'own' | 'planning_to_buy';
+
+export interface SetupInputs {
+  numberOfIncomeEarners: 1 | 2;
+  currentAge: number;
+  retirementAge: number;
+  householdGrossIncome: number;
+  currentTFSABalance: number;
+  currentRRSPBalance: number;
+  currentFHSABalance: number;
+  housingStatus: HousingStatus;
+  monthlyRent: number;
+  monthlyNonHousingExpenses: number;
+}
+
+export const DEFAULT_SETUP_INPUTS: SetupInputs = {
+  numberOfIncomeEarners: 2,
+  currentAge: 30,
+  retirementAge: 60,
+  householdGrossIncome: 100_000,
+  currentTFSABalance: 0,
+  currentRRSPBalance: 0,
+  currentFHSABalance: 0,
+  housingStatus: 'renting',
+  monthlyRent: 2_000,
+  monthlyNonHousingExpenses: 3_000,
+};
+
+/** Convert lightweight setup answers into the full scenario input shape. */
+export function setupToScenarioInputs(setup: SetupInputs): BuyingScenarioInputs {
+  const base = { ...DEFAULT_BUYING_INPUTS };
+
+  base.numberOfIncomeEarners = setup.numberOfIncomeEarners;
+  base.currentAge = setup.currentAge;
+  base.retirementAge = setup.retirementAge;
+  base.householdGrossIncome = setup.householdGrossIncome;
+  base.currentTFSABalance = setup.currentTFSABalance;
+  base.currentRRSPBalance = setup.currentRRSPBalance;
+  base.currentFHSABalance = setup.currentFHSABalance;
+  base.monthlyNonHousingExpenses = setup.monthlyNonHousingExpenses;
+  base.monthlyMoneyNeededDuringRetirement = setup.monthlyNonHousingExpenses;
+
+  base.householdTFSAContributionRoom = setup.numberOfIncomeEarners === 1 ? 7_000 : 14_000;
+  base.annualTFSARoomIncrease = setup.numberOfIncomeEarners === 1 ? 7_000 : 14_000;
+
+  switch (setup.housingStatus) {
+    case 'renting':
+      base.buyingHouse = false;
+      base.monthlyRent = setup.monthlyRent;
+      break;
+    case 'own':
+      base.buyingHouse = true;
+      base.yearsUntilPurchase = 0;
+      break;
+    case 'planning_to_buy':
+      base.buyingHouse = true;
+      base.yearsUntilPurchase = 3;
+      base.monthlyRent = setup.monthlyRent;
+      break;
+  }
+
+  return base;
+}
+
+/* ── Down payment allocation ─────────────────────────────────────── */
+
 export interface DownPaymentAllocation {
   downPayment: number;
   amountFromFHSA: number;

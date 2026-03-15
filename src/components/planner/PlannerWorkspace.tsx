@@ -17,14 +17,18 @@ import {
   saveScenario,
   type SavedScenario,
 } from '../../lib/sync';
+import {
+  getBuyingInputs,
+  setBuyingInputs,
+  removeBuyingInputs,
+} from '../../lib/storage';
 
-const STORAGE_KEY = 'net-worth-planner-inputs';
 const LOCAL_SAVE_DEBOUNCE_MS = 400;
 const CLOUD_SAVE_DEBOUNCE_MS = 2000;
 
 function loadStoredInputs(): BuyingScenarioInputs {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = getBuyingInputs();
     if (!raw) return DEFAULT_BUYING_INPUTS;
     const parsed = JSON.parse(raw) as Record<string, unknown>;
     if (parsed.householdTFSAContributionRoom == null) {
@@ -96,7 +100,7 @@ export default function PlannerWorkspace() {
         const merged = { ...DEFAULT_BUYING_INPUTS, ...match.inputs };
         setInputs(merged);
         setActiveScenarioIdState(match.id);
-        try { localStorage.removeItem(STORAGE_KEY); } catch { /* */ }
+        removeBuyingInputs();
       }
     } catch { /* fallback to localStorage */ }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -109,7 +113,7 @@ export default function PlannerWorkspace() {
     if (isAuthenticated) return;
     if (localSaveRef.current) clearTimeout(localSaveRef.current);
     localSaveRef.current = setTimeout(() => {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(inputs)); } catch { /* */ }
+      setBuyingInputs(JSON.stringify(inputs));
     }, LOCAL_SAVE_DEBOUNCE_MS);
     return () => { if (localSaveRef.current) clearTimeout(localSaveRef.current); };
   }, [inputs, isAuthenticated]);
@@ -167,7 +171,7 @@ export default function PlannerWorkspace() {
   };
 
   const handleResetToDefaults = () => {
-    try { localStorage.removeItem(STORAGE_KEY); } catch { /* */ }
+    removeBuyingInputs();
     setInputs(DEFAULT_BUYING_INPUTS);
   };
 

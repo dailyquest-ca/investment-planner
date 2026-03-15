@@ -1,13 +1,15 @@
 import type { BuyingScenarioInputs } from '../types/buying';
-
-const ACTIVE_SCENARIO_KEY = 'ip-active-scenario-id';
+import {
+  getActiveScenarioId as storageGetActiveId,
+  setActiveScenarioId as storageSetActiveId,
+} from './storage';
 
 export function getActiveScenarioId(): string | null {
-  return localStorage.getItem(ACTIVE_SCENARIO_KEY);
+  return storageGetActiveId();
 }
 
 export function setActiveScenarioId(id: string): void {
-  localStorage.setItem(ACTIVE_SCENARIO_KEY, id);
+  storageSetActiveId(id);
 }
 
 export interface SavedScenario {

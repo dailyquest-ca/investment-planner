@@ -61,4 +61,8 @@ or during periodic security reviews.
 - [ ] Vercel project connected to Git repo for automatic deploys
 - [ ] Custom domain verified with TLS
 - [ ] Build completes without errors: `npx next build`
+- [ ] If release includes schema changes (`migrations/`), production DB migration
+      was run: `npm run db:migrate` against the production `DATABASE_URL`
+- [ ] Deployment is not considered complete until both app deploy **and** production
+      migration (if applicable) have succeeded
 - [ ] Health check after deploy: `curl https://your-domain/api/health`

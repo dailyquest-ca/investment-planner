@@ -5,15 +5,17 @@ alwaysApply: true
 
 # Continuous Learning and Efficiency
 
-## Autonomous rule maintenance
+## Autonomous rule maintenance (mandatory gate)
 
-After meaningful task completion, agents should proactively evaluate whether new learning should update:
+Before marking a task complete, agents **must** check whether the work introduced a new convention, naming pattern, architectural decision, or reusable lesson. If it did, update all applicable targets:
 
-1. global playbook (`C:\dev\cursor-playbook`)
-2. this repo's rules (`.cursor/rules/`)
-3. project template rules (`C:\dev\project-template/.cursor/rules/`) when the improvement is reusable
+1. This repo's rules (`.cursor/rules/`) — project-specific details
+2. Global playbook (`C:\dev\cursor-playbook`) — reusable cross-project lessons
+3. Project template rules (`C:\dev\project-template/.cursor/rules/`) — reusable rule wording for new projects
 
-Do not wait for explicit user instruction to consider these updates. However, updates must never reduce safety constraints defined in `core/safety-policy.mdc`.
+**This is not optional.** Skipping this step is equivalent to leaving the task incomplete. Do not wait for the user to ask.
+
+Updates must never reduce safety constraints defined in `core/safety-policy.mdc`.
 
 ## Proposal-first communication
 

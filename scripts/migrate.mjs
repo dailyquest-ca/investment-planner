@@ -42,8 +42,22 @@ const sql = neon(DATABASE_URL);
 const MIGRATIONS_DIR = join(import.meta.dirname, '..', 'migrations');
 
 async function ensureTrackingTable() {
+  // Rename legacy ip_migrations -> finpath_migrations if needed
+  const legacy = await sql`
+    SELECT 1 FROM information_schema.tables
+    WHERE table_name = 'ip_migrations'
+  `;
+  const current = await sql`
+    SELECT 1 FROM information_schema.tables
+    WHERE table_name = 'finpath_migrations'
+  `;
+  if (legacy.length > 0 && current.length === 0) {
+    await sql.query('ALTER TABLE ip_migrations RENAME TO finpath_migrations');
+    console.log('  Renamed ip_migrations -> finpath_migrations');
+  }
+
   await sql`
-    CREATE TABLE IF NOT EXISTS ip_migrations (
+    CREATE TABLE IF NOT EXISTS finpath_migrations (
       name TEXT PRIMARY KEY,
       applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
     )
@@ -51,7 +65,7 @@ async function ensureTrackingTable() {
 }
 
 async function getApplied() {
-  const rows = await sql`SELECT name FROM ip_migrations ORDER BY name`;
+  const rows = await sql`SELECT name FROM finpath_migrations ORDER BY name`;
   return new Set(rows.map((r) => r.name));
 }
 
@@ -104,7 +118,7 @@ async function applyMigration(file) {
   for (const stmt of stmts) {
     await sql.query(stmt);
   }
-  await sql`INSERT INTO ip_migrations (name) VALUES (${file}) ON CONFLICT DO NOTHING`;
+  await sql`INSERT INTO finpath_migrations (name) VALUES (${file}) ON CONFLICT DO NOTHING`;
   console.log(`  ✓ ${file}`);
 }
 

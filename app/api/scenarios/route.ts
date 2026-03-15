@@ -27,7 +27,7 @@ export async function GET() {
   try {
     const rows = await sql`
       SELECT id, name, inputs, is_default, created_at, updated_at
-      FROM ip_scenarios
+      FROM finpath_legacy_scenarios
       WHERE user_id = ${userId}
       ORDER BY updated_at DESC
       LIMIT ${MAX_SCENARIOS_PER_USER}
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Invalid scenario id' }, { status: 400 });
       }
       const rows = await sql`
-        UPDATE ip_scenarios
+        UPDATE finpath_legacy_scenarios
         SET name = ${safeName},
             inputs = ${inputsJson},
             is_default = ${is_default ?? false},
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
     }
 
     const countResult = await sql`
-      SELECT count(*)::int AS cnt FROM ip_scenarios WHERE user_id = ${userId}
+      SELECT count(*)::int AS cnt FROM finpath_legacy_scenarios WHERE user_id = ${userId}
     `;
     if (countResult[0]?.cnt >= MAX_SCENARIOS_PER_USER) {
       return NextResponse.json({ error: 'Scenario limit reached' }, { status: 409 });
@@ -92,13 +92,13 @@ export async function POST(request: NextRequest) {
 
     if (is_default) {
       await sql`
-        UPDATE ip_scenarios SET is_default = false
+        UPDATE finpath_legacy_scenarios SET is_default = false
         WHERE user_id = ${userId} AND is_default = true
       `;
     }
 
     const rows = await sql`
-      INSERT INTO ip_scenarios (user_id, name, inputs, is_default)
+      INSERT INTO finpath_legacy_scenarios (user_id, name, inputs, is_default)
       VALUES (${userId}, ${safeName}, ${inputsJson}, ${is_default ?? false})
       RETURNING id, name, is_default, created_at, updated_at
     `;
@@ -122,7 +122,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     await sql`
-      DELETE FROM ip_scenarios
+      DELETE FROM finpath_legacy_scenarios
       WHERE id = ${scenarioId} AND user_id = ${userId}
     `;
     return NextResponse.json({ deleted: true });

@@ -35,9 +35,11 @@ Use it when changing:
 
 ### Dashboard
 
-- Summary-first
-- Should not become a second planner
-- Can link into `Plan` and `Track`
+- Has two states: **setup** (first-time) and **summary** (returning)
+- First-time: collects baseline info (age, income, balances, housing status, expenses), maps to a full scenario, then transitions to summary
+- Returning: summary-first with key milestones and CTAs into Plan and Track
+- Should not become a second planner; advanced controls stay in Plan
+- Users can re-enter the setup flow via "Redo setup" in the summary view
 
 ### Plan
 

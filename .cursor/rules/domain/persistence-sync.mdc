@@ -1,17 +1,19 @@
 ---
-description: Scenario persistence and sync — localStorage + Auth.js session + Neon Postgres
-globs: "src/lib/sync.ts,src/lib/auth.ts,app/api/scenarios/**/*.ts"
+description: Persistence and sync — localStorage + Auth.js session + Neon Postgres
+globs: "src/lib/sync.ts,src/lib/storage.ts,src/lib/actuals.ts,src/lib/auth.ts,app/api/scenarios/**/*.ts,app/api/actuals/**/*.ts"
 alwaysApply: false
 ---
 
-# Scenario Persistence and Sync
+# Persistence and Sync
 
-User scenarios use a layered persistence model with authenticated cloud sync.
+User data uses a layered persistence model with authenticated cloud sync.
 
 ## Architecture
 
-1. **Local layer** (`localStorage`): Draft-only persistence for anonymous users.
-2. **Remote layer** (Neon Postgres via `app/api/scenarios/route.ts`): Session-authenticated cloud persistence for signed-in users.
+1. **Local layer** (`localStorage` via `src/lib/storage.ts`): Draft-only persistence for anonymous users. All keys use the `finpath-` prefix. Legacy `ip-*` and `net-worth-planner-*` keys are auto-migrated on read.
+2. **Remote layer** (Neon Postgres): Session-authenticated cloud persistence for signed-in users.
+   - `app/api/scenarios/route.ts` → `finpath_legacy_scenarios` (transitional — do not build new features on this)
+   - `app/api/actuals/route.ts` → `finpath_monthly_actuals` (target domain model)
 
 ## Identity model
 

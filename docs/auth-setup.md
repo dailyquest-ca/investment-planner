@@ -4,7 +4,7 @@ Quick reference for configuring authentication on this project.
 
 ## Prerequisites
 
-- Neon database with auth tables created (run `scripts/auth-schema.sql`)
+- Neon database with migrations applied (`npm run db:migrate`). Dev and production use separate `DATABASE_URL` values — run migrations against each target independently.
 - `AUTH_SECRET` generated via `npx auth secret`
 
 ## Email magic links (Resend)
@@ -35,7 +35,7 @@ Quick reference for configuring authentication on this project.
 | Resend 403 "testing domain restriction" | `AUTH_EMAIL_FROM` uses an unverified domain, or value has extra quotes |
 | `OAuthAccountNotLinked` | User signed up via email then tried Google (or vice versa). Fixed in this project with `allowDangerousEmailAccountLinking`. |
 | Vercel env var includes literal `"` | Vercel UI does not strip quotes — paste raw values only |
-| Auth tables missing after DB change | `DATABASE_URL` changed (e.g. new Neon project). Re-run `scripts/auth-schema.sql`. |
+| Auth tables missing after DB change | `DATABASE_URL` changed (e.g. new Neon project/branch). Run `npm run db:migrate` against the new target. |
 
 ## Vercel deployment
 

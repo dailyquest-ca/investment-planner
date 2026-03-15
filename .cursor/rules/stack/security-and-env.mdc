@@ -41,3 +41,15 @@ alwaysApply: false
 - Maintain a non-secret health endpoint (`/api/health`) that reports env presence and DB connectivity status.
 - Keep migration-driven schema management in `/migrations`; do not create schema inside request handlers.
 - Keep Vercel environment parity checks across Development / Preview / Production before auth debugging.
+
+## Production release protocol
+
+When asked to "push to prod", "deploy", or "check it in":
+
+1. **Check for schema changes.** Look for new or modified files in `migrations/`. If present, warn the user that production DB migration is required alongside the app deploy.
+2. **Commit and push** app code to `main` (triggers Vercel auto-deploy).
+3. **If schema changes exist**, run `npm run db:migrate` against the **production** `DATABASE_URL`. Never skip this step — the deploy is incomplete without it.
+4. **Verify** by hitting `/api/health` on the production URL.
+5. **Report clearly** whether both the app deploy and the production migration (if applicable) completed successfully.
+
+Code deploys are automatic; schema deploys are explicit. Do not auto-run production migrations on every build — only as part of an intentional release.

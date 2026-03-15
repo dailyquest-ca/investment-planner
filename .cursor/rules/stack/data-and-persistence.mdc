@@ -12,4 +12,17 @@ alwaysApply: false
 
 **Units and rounding:** Document and apply consistent units (e.g. minutes, cents) and rounding rules before persisting. Enforce minimums (e.g. non-negative) where applicable.
 
-**Migrations and schema:** Put migrations in a dedicated folder (e.g. `drizzle/`, `scripts/migrations/`). Use project scripts (e.g. `db:generate`, `db:push`) with env for applying changes. Never commit raw DB credentials or connection strings.
+**Migrations and schema:** Migrations live in `migrations/` and are applied with `npm run db:migrate` (runs `scripts/migrate.mjs`). The tracking table is `finpath_migrations`. Never commit raw DB credentials or connection strings.
+
+## Database table naming convention
+
+| Prefix | Meaning | Lifecycle |
+|---|---|---|
+| `finpath_` | Target domain model | Permanent |
+| `finpath_legacy_` | Transitional — data will be decomposed into target tables | Scheduled for removal |
+
+Current tables:
+- `finpath_monthly_actuals` — target model (observed monthly financial data)
+- `finpath_legacy_scenarios` — transitional (monolithic `BuyingScenarioInputs` blob, will be decomposed into `HouseholdProfile`, `Goal`, `Policy`, `PlannedEvent`, `Strategy`, etc.)
+
+Do not build new features on `finpath_legacy_*` tables. New domain entities get `finpath_` tables.
